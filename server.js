@@ -622,7 +622,7 @@ app.use((err, req, res, next) => {
 export default app;
 
 const PORT = process.env.PORT || 5000;
-// Only listen if not running in Vercel (Vercel handles this automatically)
-if (process.env.NODE_ENV !== 'production') {
+// Vercel handles listen automatically, but Render/Standard hosts need it
+if (process.env.NODE_ENV !== 'production' || process.env.RENDER || !process.env.VERCEL) {
   app.listen(PORT, () => console.log(`CertHub Server running on port ${PORT}`));
 }
