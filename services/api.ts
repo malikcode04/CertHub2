@@ -99,5 +99,32 @@ export const api = {
         });
         if (!res.ok) throw new Error(await res.text());
         return res.json();
+    },
+
+    // Classes
+    getClasses: async (): Promise<any[]> => {
+        const res = await fetch(`${API_URL}/classes`, { headers: getHeaders() });
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+    },
+
+    createClass: async (data: any) => {
+        const res = await fetch(`${API_URL}/classes`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+    },
+
+    enrollStudents: async (classId: string, studentIds: string[]) => {
+        const res = await fetch(`${API_URL}/classes/${classId}/enroll`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ studentIds })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
     }
 };

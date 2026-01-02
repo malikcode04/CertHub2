@@ -14,6 +14,7 @@ import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import PublicCertificateView from './components/PublicCertificateView';
 import BulkImport from './components/BulkImport';
 import AuditLogViewer from './components/AuditLogViewer';
+import AdminClassManager from './components/AdminClassManager';
 import {
   FileCheck,
   Clock,
@@ -304,6 +305,10 @@ const MainApp: React.FC = () => {
       )}
 
       {activeTab === 'analytics' && <Analytics certificates={certificates} />}
+
+      {activeTab === 'classes' && user.role === UserRole.ADMIN && (
+        <AdminClassManager />
+      )}
 
       {activeTab === 'bulk-import' && user.role === UserRole.ADMIN && (
         <BulkImport onSuccess={fetchData} />

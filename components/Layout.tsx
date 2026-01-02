@@ -70,6 +70,7 @@ const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, activeTab, se
             <div className="pt-4 pb-2 px-4">
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Administration</p>
             </div>
+            <NavItem id="classes" label="Class Management" icon={<Users size={20} />} active={activeTab === 'classes'} onClick={() => { setActiveTab('classes'); setIsMobileMenuOpen(false); }} />
             <NavItem id="bulk-import" label="Bulk Import" icon={<UploadCloud size={20} />} active={activeTab === 'bulk-import'} onClick={() => { setActiveTab('bulk-import'); setIsMobileMenuOpen(false); }} />
             <NavItem id="audit-logs" label="Audit Logs" icon={<History size={20} />} active={activeTab === 'audit-logs'} onClick={() => { setActiveTab('audit-logs'); setIsMobileMenuOpen(false); }} />
           </>

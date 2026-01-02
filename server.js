@@ -501,7 +501,71 @@ app.post('/api/platforms', async (req, res) => {
   }
 });
 
-// Note: Class and Enrollment endpoints removed for simplification as requested.
+// --- CLASSES ---
+
+// Get all classes with teacher names and student counts
+app.get('/api/classes', async (req, res) => {
+  try {
+    const connection = await mysql.createConnection(dbConfig);
+    try {
+      const [rows] = await connection.execute(`
+        SELECT c.*, u.name as teacherName,
+        (SELECT COUNT(*) FROM class_enrollments WHERE class_id = c.id) as studentCount
+        FROM classes c
+        JOIN users u ON c.teacher_id = u.id
+      `);
+      res.json(rows);
+    } finally {
+      await connection.end();
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create a new class
+app.post('/api/classes', async (req, res) => {
+  try {
+    const { name, courseName, teacherId } = req.body;
+    const id = `cls${Date.now()}`;
+    const connection = await mysql.createConnection(dbConfig);
+    try {
+      await connection.execute(
+        'INSERT INTO classes (id, name, course_name, teacher_id) VALUES (?, ?, ?, ?)',
+        [id, name, courseName, teacherId]
+      );
+      res.json({ id, name, courseName, teacherId });
+    } finally {
+      await connection.end();
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Enroll students in a class (Bulk)
+app.post('/api/classes/:id/enroll', async (req, res) => {
+  try {
+    const { id: classId } = req.params;
+    const { studentIds } = req.body; // Expects an array
+
+    const connection = await mysql.createConnection(dbConfig);
+    try {
+      for (const studentId of studentIds) {
+        const id = `enr${Date.now()}${Math.floor(Math.random() * 1000)}`;
+        await connection.execute(
+          'INSERT IGNORE INTO class_enrollments (id, class_id, student_id) VALUES (?, ?, ?)',
+          [id, classId, studentId]
+        );
+      }
+      res.json({ success: true, count: studentIds.length });
+    } finally {
+      await connection.end();
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Global Error Handler
 app.use((err, req, res, next) => {
