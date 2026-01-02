@@ -8,11 +8,30 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 
+import helmet from 'helmet';
+import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
+
 dotenv.config();
 
 const app = express();
+
+// --- SECURITY & LOGGING ---
+app.use(helmet()); // Basic security headers
+app.use(morgan('dev')); // Request logging
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+// Rate Limiting: Limit public/auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per window
+  message: { error: 'Too many requests from this IP, please try again after 15 minutes' }
+});
+
+app.use('/api/login', authLimiter);
+app.use('/api/register', authLimiter);
+app.use('/api/public', authLimiter);
 
 // --- CONFIGURATION ---
 // Put your keys in .env file or Vercel Environment Variables
@@ -56,9 +75,20 @@ const sendEmail = async (to, subject, text, html) => {
 };
 
 // --- HELPER ---
+const validateEnv = () => {
+  const required = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'API_KEY', 'CLOUDINARY_CLOUD_NAME'];
+  const missing = required.filter(key => !process.env[key]);
+  if (missing.length > 0) {
+    console.error(`❌ CRITICAL: Missing environment variables: ${missing.join(', ')}`);
+    process.exit(1);
+  }
+};
+validateEnv();
+
 const initDB = async () => {
   const connection = await mysql.createConnection(dbConfig);
   try {
+    // Tables
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id VARCHAR(255) PRIMARY KEY,
@@ -66,10 +96,17 @@ const initDB = async () => {
         user_name VARCHAR(255),
         action VARCHAR(255) NOT NULL,
         details TEXT,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_user (user_id),
+        INDEX idx_action (action)
       )
     `);
-    console.log('Database tables initialized');
+
+    // Performance Indexes
+    await connection.execute('ALTER TABLE certificates ADD INDEX IF NOT EXISTS idx_student (student_id)');
+    await connection.execute('ALTER TABLE certificates ADD INDEX IF NOT EXISTS idx_status (status)');
+
+    console.log('Database tables and indexes initialized');
   } catch (err) {
     console.error('DB Init Error:', err);
   } finally {
@@ -569,6 +606,16 @@ app.get('/api/classes/:id/students', async (req, res) => {
     console.error('Get Class Students Error:', err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error('SERVER_ERROR:', err);
+  res.status(err.status || 500).json({
+    error: process.env.NODE_ENV === 'production'
+      ? 'An unexpected error occurred. Please try again later.'
+      : err.message
+  });
 });
 
 // Export for Vercel
