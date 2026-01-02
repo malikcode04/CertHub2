@@ -7,6 +7,7 @@ DROP TABLE IF EXISTS class_enrollments;
 DROP TABLE IF EXISTS classes;
 DROP TABLE IF EXISTS platforms;
 DROP TABLE IF EXISTS teacher_student_mapping;
+DROP TABLE IF EXISTS audit_logs;
 DROP TABLE IF EXISTS certificates;
 DROP TABLE IF EXISTS users;
 
@@ -17,6 +18,7 @@ CREATE TABLE users (
   name VARCHAR(255) NOT NULL,
   email VARCHAR(255) UNIQUE NOT NULL,
   password VARCHAR(255) NOT NULL,
+  roll_number VARCHAR(50),
   role ENUM('STUDENT', 'TEACHER', 'ADMIN') NOT NULL,
   avatar VARCHAR(255),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -62,4 +64,14 @@ CREATE TABLE certificates (
   verified_at TIMESTAMP NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE audit_logs (
+  id VARCHAR(255) PRIMARY KEY,
+  user_id VARCHAR(255) NOT NULL,
+  user_name VARCHAR(255),
+  action VARCHAR(255) NOT NULL,
+  details TEXT,
+  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

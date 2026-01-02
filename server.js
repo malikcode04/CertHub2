@@ -30,7 +30,67 @@ const dbConfig = {
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  port: process.env.DB_PORT || 3306
+  port: process.env.DB_PORT || 3306,
+  ssl: process.env.DB_HOST === 'localhost' ? undefined : { rejectUnauthorized: true }
+};
+
+import nodemailer from 'nodemailer';
+
+// --- CONFIGURATION ---
+// ... (rest of config)
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
+const sendEmail = async (to, subject, text, html) => {
+  try {
+    await transporter.sendMail({ from: process.env.EMAIL_USER, to, subject, text, html });
+  } catch (err) {
+    console.error('Email Send Error:', err);
+  }
+};
+
+// --- HELPER ---
+const initDB = async () => {
+  const connection = await mysql.createConnection(dbConfig);
+  try {
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id VARCHAR(255) PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        user_name VARCHAR(255),
+        action VARCHAR(255) NOT NULL,
+        details TEXT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('Database tables initialized');
+  } catch (err) {
+    console.error('DB Init Error:', err);
+  } finally {
+    await connection.end();
+  }
+};
+initDB();
+
+const logAction = async (userId, userName, action, details) => {
+  const connection = await mysql.createConnection(dbConfig);
+  try {
+    const id = `log${Date.now()}`;
+    await connection.execute(
+      'INSERT INTO audit_logs (id, user_id, user_name, action, details) VALUES (?, ?, ?, ?, ?)',
+      [id, userId, userName, action, details]
+    );
+  } catch (err) {
+    console.error('Audit Log Error:', err);
+  } finally {
+    await connection.end();
+  }
 };
 
 // --- ROUTES ---
@@ -40,26 +100,109 @@ app.get('/', (req, res) => {
   res.send('CertHub API is running');
 });
 
-// Auth: Register
-app.post('/api/register', async (req, res) => {
+// Public: Verify Certificate (No Auth Required)
+app.get('/api/public/certificates/:id', async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const id = `u${Date.now()}`;
-    const avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`;
-
+    const { id } = req.params;
     const connection = await mysql.createConnection(dbConfig);
+    let rows;
     try {
-      await connection.execute(
-        'INSERT INTO users (id, name, email, password, role, avatar) VALUES (?, ?, ?, ?, ?, ?)',
-        [id, name, email, hashedPassword, role, avatar]
+      [rows] = await connection.execute(
+        `SELECT certificates.*, users.name as student_name 
+         FROM certificates 
+         JOIN users ON certificates.student_id = users.id 
+         WHERE certificates.id = ?`,
+        [id]
       );
     } finally {
       await connection.end();
     }
 
-    const token = jwt.sign({ id, role }, JWT_SECRET);
-    res.json({ token, user: { id, name, email, role, avatar } });
+    if (rows.length === 0) return res.status(404).json({ error: 'Certificate not found' });
+
+    const row = rows[0];
+    const cert = {
+      id: row.id,
+      studentId: row.student_id,
+      student_name: row.student_name, // Keep for now as used in Public view
+      title: row.title,
+      platform: row.platform,
+      issuedDate: row.issued_date,
+      fileUrl: row.file_url,
+      status: row.status,
+      remarks: row.remarks,
+      verifiedBy: row.verified_by,
+      verifiedAt: row.verified_at
+    };
+
+    res.json(cert);
+  } catch (err) {
+    console.error('Public Verify Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// Admin: Audit Logs
+app.get('/api/admin/logs', async (req, res) => {
+  try {
+    const connection = await mysql.createConnection(dbConfig);
+    let rows;
+    try {
+      [rows] = await connection.execute('SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 100');
+    } finally {
+      await connection.end();
+    }
+    res.json(rows);
+  } catch (err) {
+    console.error('Get Logs Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Auth: Register
+app.post('/api/register', async (req, res) => {
+  try {
+    const { name, email, password, role, rollNumber, classId } = req.body;
+
+    // Check if user exists
+    const connection = await mysql.createConnection(dbConfig);
+
+    try {
+      const [existing] = await connection.execute('SELECT * FROM users WHERE email = ?', [email]);
+      if (existing.length > 0) {
+        return res.status(400).json({ error: 'User already exists' });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`;
+      const id = `u${Date.now()}`;
+
+      // Insert User
+      await connection.execute(
+        'INSERT INTO users (id, name, email, password, role, avatar, roll_number) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [id, name, email, hashedPassword, role, avatar, rollNumber || null]
+      );
+
+      // Auto-enroll in class if Student and classId provided
+      if (role === 'STUDENT' && classId) {
+        const enrollId = `ce${Date.now()}`;
+        await connection.execute(
+          'INSERT INTO class_enrollments (id, class_id, student_id) VALUES (?, ?, ?)',
+          [enrollId, classId, id]
+        );
+      }
+
+      const token = jwt.sign({ id, role }, JWT_SECRET, { expiresIn: '1d' });
+
+      // Audit Log
+      await logAction(id, name, 'REGISTER', `User registered as ${role}`);
+
+      res.json({ token, user: { id, name, email, role, avatar, rollNumber } });
+
+    } finally {
+      await connection.end();
+    }
   } catch (err) {
     console.error('Register Error:', err);
     res.status(500).json({ error: err.message });
@@ -175,10 +318,30 @@ app.put('/api/certificates/:id', async (req, res) => {
 
     const connection = await mysql.createConnection(dbConfig);
     try {
+      // Get student email for notification
+      const [certs] = await connection.execute(
+        'SELECT c.*, u.email, u.name as studentName FROM certificates c JOIN users u ON c.student_id = u.id WHERE c.id = ?',
+        [id]
+      );
+
+      if (certs.length === 0) return res.status(404).json({ error: 'Certificate not found' });
+      const cert = certs[0];
+
       await connection.execute(
         'UPDATE certificates SET status = ?, remarks = ?, verified_by = ?, verified_at = NOW() WHERE id = ?',
         [status, remarks || null, verifiedBy, id]
       );
+
+      // Audit Log
+      await logAction(verifiedBy, 'SYSTEM', status === 'VERIFIED' ? 'VERIFY' : 'REJECT', `Certificate ${id} marked as ${status}`);
+
+      // Email Notification
+      const subject = `Certificate ${status}: ${cert.title}`;
+      const text = `Hi ${cert.studentName},\n\nYour certificate for ${cert.title} has been ${status.toLowerCase()}.\nRemarks: ${remarks || 'None'}`;
+      const html = `<h3>Hi ${cert.studentName},</h3><p>Your certificate for <b>${cert.title}</b> has been <b>${status.toLowerCase()}</b>.</p><p>Remarks: ${remarks || 'None'}</p>`;
+
+      await sendEmail(cert.email, subject, text, html);
+
     } finally {
       await connection.end();
     }

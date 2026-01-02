@@ -12,7 +12,11 @@ import {
   Menu,
   X,
   ShieldCheck,
-  FileText
+  FileText,
+  UploadCloud,
+  History,
+  BarChart3,
+  Award
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -23,38 +27,29 @@ interface LayoutProps {
   setActiveTab: (tab: string) => void;
 }
 
+interface NavItemProps {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  active: boolean;
+  onClick: () => void;
+}
+
+const NavItem: React.FC<NavItemProps> = ({ id, label, icon, active, onClick }) => (
+  <button
+    onClick={onClick}
+    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${active
+      ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+      }`}
+  >
+    {icon}
+    <span className="font-medium">{label}</span>
+  </button>
+);
+
 const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, activeTab, setActiveTab }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  const menuItems = [
-    { id: 'dashboard', icon: <LayoutDashboard size={20} />, label: 'Dashboard', roles: [UserRole.STUDENT, UserRole.TEACHER, UserRole.ADMIN] },
-    { id: 'certificates', icon: <FileCheck size={20} />, label: 'Certificates', roles: [UserRole.STUDENT, UserRole.TEACHER] },
-    { id: 'students', icon: <Users size={20} />, label: 'My Students', roles: [UserRole.TEACHER, UserRole.ADMIN] },
-    { id: 'analytics', icon: <Settings size={20} />, label: 'Analytics', roles: [UserRole.ADMIN] },
-  ];
-
-  const filteredMenu = menuItems.filter(item => item.roles.includes(user.role));
-
-  const BrandLogo = ({ size = "md" }: { size?: "sm" | "md" | "lg" }) => {
-    const sizes = {
-      sm: { container: "w-8 h-8", icon: 16, text: "text-lg" },
-      md: { container: "w-10 h-10", icon: 20, text: "text-xl" },
-      lg: { container: "w-16 h-16", icon: 32, text: "text-3xl" }
-    };
-    const s = sizes[size];
-
-    return (
-      <div className="flex items-center gap-3">
-        <div className={`relative ${s.container} rounded-full bg-gradient-to-tr from-[#3b82f6] via-[#10b981] to-[#34d399] flex items-center justify-center shadow-lg shadow-blue-500/20 overflow-hidden border border-white/20`}>
-          <ShieldCheck size={s.icon} className="text-white relative z-10" />
-        </div>
-        <div className="flex flex-col leading-none">
-          <span className={`${s.text} font-black tracking-tight text-white`}>CertHub</span>
-          {size === "lg" && <span className="text-[10px] text-white/60 font-bold uppercase tracking-[0.2em] mt-1">One Hub. All Certificates.</span>}
-        </div>
-      </div>
-    );
-  };
 
   const SidebarContent = () => (
     <>
@@ -66,22 +61,19 @@ const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, activeTab, se
       </div>
 
       <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-        {filteredMenu.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => {
-              setActiveTab(item.id);
-              setIsMobileMenuOpen(false);
-            }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === item.id
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
-              : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`}
-          >
-            {item.icon}
-            <span className="font-medium">{item.label}</span>
-          </button>
-        ))}
+        <NavItem id="dashboard" label="Dashboard" icon={<LayoutDashboard size={20} />} active={activeTab === 'dashboard'} onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }} />
+        <NavItem id="certificates" label="Certificates" icon={<Award size={20} />} active={activeTab === 'certificates'} onClick={() => { setActiveTab('certificates'); setIsMobileMenuOpen(false); }} />
+        <NavItem id="analytics" label="Analytics" icon={<BarChart3 size={20} />} active={activeTab === 'analytics'} onClick={() => { setActiveTab('analytics'); setIsMobileMenuOpen(false); }} />
+
+        {user.role === UserRole.ADMIN && (
+          <>
+            <div className="pt-4 pb-2 px-4">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Administration</p>
+            </div>
+            <NavItem id="bulk-import" label="Bulk Import" icon={<UploadCloud size={20} />} active={activeTab === 'bulk-import'} onClick={() => { setActiveTab('bulk-import'); setIsMobileMenuOpen(false); }} />
+            <NavItem id="audit-logs" label="Audit Logs" icon={<History size={20} />} active={activeTab === 'audit-logs'} onClick={() => { setActiveTab('audit-logs'); setIsMobileMenuOpen(false); }} />
+          </>
+        )}
       </nav>
 
       <div className="p-4 border-t border-slate-800">
@@ -133,7 +125,6 @@ const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, activeTab, se
               <Menu size={24} />
             </button>
 
-            {/* Logo in Navbar for Mobile */}
             <div className="flex lg:hidden items-center gap-2">
               <img src="/logo.jpg" alt="CertHub" className="w-8 h-8 rounded-full object-cover" />
               <span className="text-xl font-black tracking-tight text-slate-900">CertHub</span>
@@ -162,7 +153,6 @@ const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, activeTab, se
                 <p className="text-sm font-bold text-slate-800 leading-tight truncate max-w-[120px]">{user.name}</p>
                 <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">{user.role}</p>
               </div>
-              {/* Avatar Removed */}
             </div>
           </div>
         </header>

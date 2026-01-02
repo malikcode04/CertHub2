@@ -11,6 +11,10 @@ import AdminPlatformManager from './components/AdminPlatformManager';
 import AdminClassManager from './components/AdminClassManager';
 import { api } from './services/api';
 import { persistenceService } from './services/persistenceService';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import PublicCertificateView from './components/PublicCertificateView';
+import BulkImport from './components/BulkImport';
+import AuditLogViewer from './components/AuditLogViewer';
 import {
   FileCheck,
   Clock,
@@ -25,6 +29,17 @@ import {
 } from 'lucide-react';
 
 const App: React.FC = () => {
+  return (
+    <Routes>
+      <Route path="/verify/:id" element={<PublicCertificateView />} />
+      <Route path="/*" element={<MainApp />} />
+    </Routes>
+  );
+};
+
+const MainApp: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [user, setUser] = useState<User | null>(persistenceService.getCurrentUser());
   const [isRegistering, setIsRegistering] = useState(false);
   const [regRole, setRegRole] = useState<UserRole | null>(null);
@@ -35,9 +50,16 @@ const App: React.FC = () => {
   const [selectedCert, setSelectedCert] = useState<Certificate | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
+  const [availableClasses, setAvailableClasses] = useState<{ id: string, name: string, teacherName: string }[]>([]);
 
-  const [regData, setRegData] = useState({ name: '', email: '', password: '' });
+  const [regData, setRegData] = useState({ name: '', email: '', password: '', rollNumber: '', classId: '' });
   const [loginData, setLoginData] = useState({ email: '', password: '' });
+
+  useEffect(() => {
+    if (isRegistering && regRole === UserRole.STUDENT) {
+      api.getClasses().then(cls => setAvailableClasses(cls)).catch(console.error);
+    }
+  }, [isRegistering, regRole]);
 
   useEffect(() => {
     if (user) {
@@ -49,8 +71,9 @@ const App: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      // Fetch certificates for the current user
-      const certs = await api.getCertificates({ studentId: user?.id });
+      // Fetch certificates: Students only see theirs, Admin/Teachers see all (for now)
+      const params = user?.role === UserRole.STUDENT ? { studentId: user.id } : {};
+      const certs = await api.getCertificates(params);
       setCertificates(Array.isArray(certs) ? certs : []);
 
       // If admin, fetch all users
@@ -105,6 +128,7 @@ const App: React.FC = () => {
   const handleLogout = () => {
     setUser(null);
     persistenceService.setCurrentUser(null);
+    localStorage.removeItem('token');
   };
 
   const handleUpload = async (data: { title: string; platform: string; date: string; file: File }) => {
@@ -128,6 +152,47 @@ const App: React.FC = () => {
       };
     } catch (e) {
       alert("Upload failed");
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleDownload = async (cert: Certificate) => {
+    try {
+      const response = await fetch(cert.fileUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${cert.title.replace(/\s+/g, '_')}_Certificate.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download failed:', err);
+      // Fallback
+      const link = document.createElement('a');
+      link.href = cert.fileUrl;
+      link.target = '_blank';
+      link.download = `${cert.title.replace(/\s+/g, '_')}_Certificate.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  const handleVerify = async (id: string, status: CertificateStatus, remarks?: string) => {
+    setIsBusy(true);
+    try {
+      await api.updateCertificate(id, {
+        status,
+        remarks: remarks || '',
+        verifiedBy: user?.id || 'anonymous'
+      });
+      fetchData(); // Refetch to show updated status
+    } catch (e) {
+      alert("Verification update failed");
     } finally {
       setIsBusy(false);
     }
@@ -180,6 +245,19 @@ const App: React.FC = () => {
                 <form onSubmit={handleRegisterSubmit} className="space-y-4">
                   <input required placeholder="Full Name" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, name: e.target.value })} />
                   <input required type="email" placeholder="Email" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, email: e.target.value })} />
+
+                  {regRole === UserRole.STUDENT && (
+                    <>
+                      <input required placeholder="Roll Number" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, rollNumber: e.target.value })} />
+                      <select className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none text-slate-500" onChange={e => setRegData({ ...regData, classId: e.target.value })}>
+                        <option value="">Select Class (Optional)</option>
+                        {availableClasses.map(c => (
+                          <option key={c.id} value={c.id}>{c.name} - {c.teacherName}</option>
+                        ))}
+                      </select>
+                    </>
+                  )}
+
                   <input required type="password" placeholder="Password" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, password: e.target.value })} />
                   <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold">Register as {regRole}</button>
                 </form>
@@ -194,38 +272,78 @@ const App: React.FC = () => {
   return (
     <Layout user={user} onLogout={handleLogout} activeTab={activeTab} setActiveTab={setActiveTab}>
       {activeTab === 'dashboard' && (
-        <div>
-          <div className="flex justify-between items-center mb-8">
+        <div className="space-y-10">
+          <div className="flex justify-between items-center">
             <h2 className="text-3xl font-black text-slate-900">Dashboard</h2>
-            {user.role === UserRole.STUDENT && <button onClick={() => setShowUpload(true)} className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg flex items-center gap-2"><Plus size={20} /> Upload</button>}
+            {user.role === UserRole.STUDENT && (
+              <button
+                onClick={() => setShowUpload(true)}
+                className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg flex items-center gap-2 hover:bg-blue-700 transition-all"
+              >
+                <Plus size={20} /> Upload
+              </button>
+            )}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <StatCard label="Total" value={certificates.length} icon={<FileCheck />} color="bg-blue-600" />
             <StatCard label="Verified" value={certificates.filter(c => c.status === CertificateStatus.VERIFIED).length} icon={<UserCheck />} color="bg-emerald-500" />
             <StatCard label="Pending" value={certificates.filter(c => c.status === CertificateStatus.PENDING).length} icon={<Clock />} color="bg-amber-500" />
             <StatCard label="Rejected" value={certificates.filter(c => c.status === CertificateStatus.REJECTED).length} icon={<AlertTriangle />} color="bg-red-500" />
           </div>
 
-          {/* Admin Management Section */}
           {user.role === UserRole.ADMIN && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <AdminClassManager />
               <AdminPlatformManager />
             </div>
           )}
 
-          <CertificateTable certificates={certificates.slice(0, 5)} role={user.role} onPreview={setSelectedCert} />
+          <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
+            <h3 className="text-xl font-black text-slate-800 mb-6">Recent Certificates</h3>
+            <CertificateTable
+              certificates={certificates.slice(0, 5)}
+              role={user.role}
+              onPreview={setSelectedCert}
+              onDownload={handleDownload}
+              onVerify={handleVerify}
+            />
+          </div>
         </div>
       )}
 
       {activeTab === 'certificates' && (
-        <CertificateTable certificates={certificates} role={user.role} onPreview={setSelectedCert} />
+        <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
+          <h2 className="text-2xl font-black text-slate-900 mb-8">All Certificates</h2>
+          <CertificateTable
+            certificates={certificates}
+            role={user.role}
+            onPreview={setSelectedCert}
+            onDownload={handleDownload}
+            onVerify={handleVerify}
+          />
+        </div>
       )}
 
       {activeTab === 'analytics' && <Analytics certificates={certificates} />}
 
+      {activeTab === 'bulk-import' && user.role === UserRole.ADMIN && (
+        <BulkImport onSuccess={fetchData} />
+      )}
+
+      {activeTab === 'audit-logs' && user.role === UserRole.ADMIN && (
+        <AuditLogViewer />
+      )}
+
       {showUpload && <UploadModal onClose={() => setShowUpload(false)} onUpload={handleUpload} />}
-      {selectedCert && <PreviewModal certificate={selectedCert} onClose={() => setSelectedCert(null)} showAIAnalysis={true} />}
+      {selectedCert && (
+        <PreviewModal
+          certificate={selectedCert}
+          onClose={() => setSelectedCert(null)}
+          showAIAnalysis={true}
+          onDownload={() => handleDownload(selectedCert)}
+        />
+      )}
 
       {isBusy && (
         <div className="fixed inset-0 z-[100] bg-white/20 backdrop-blur-sm flex items-center justify-center">

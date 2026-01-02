@@ -1,16 +1,17 @@
 
 import React from 'react';
 import { Certificate, CertificateStatus, UserRole } from '../types';
-import { ExternalLink, CheckCircle, XCircle, Clock, MoreVertical, Eye } from 'lucide-react';
+import { ExternalLink, CheckCircle, XCircle, Clock, MoreVertical, Eye, Download } from 'lucide-react';
 
 interface CertificateTableProps {
   certificates: Certificate[];
   role: UserRole;
   onVerify?: (id: string, status: CertificateStatus, remarks?: string) => void;
   onPreview: (cert: Certificate) => void;
+  onDownload: (cert: Certificate) => void;
 }
 
-const CertificateTable: React.FC<CertificateTableProps> = ({ certificates, role, onVerify, onPreview }) => {
+const CertificateTable: React.FC<CertificateTableProps> = ({ certificates, role, onVerify, onPreview, onDownload }) => {
   const getStatusBadge = (status: CertificateStatus) => {
     switch (status) {
       case CertificateStatus.VERIFIED:
@@ -79,27 +80,34 @@ const CertificateTable: React.FC<CertificateTableProps> = ({ certificates, role,
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      <button 
+                      <button
                         onClick={() => onPreview(cert)}
-                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                        className="flex items-center gap-2 px-3 py-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all font-bold text-xs"
                         title="View Certificate"
                       >
-                        <Eye size={18} />
+                        <Eye size={16} /> <span>Preview</span>
                       </button>
-                      
+                      <button
+                        onClick={() => onDownload(cert)}
+                        className="flex items-center gap-2 px-3 py-2 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-all font-bold text-xs"
+                        title="Download Certificate"
+                      >
+                        <Download size={16} /> <span>Download</span>
+                      </button>
+
                       {role === UserRole.TEACHER && cert.status === CertificateStatus.PENDING && (
                         <>
-                          <button 
+                          <button
                             onClick={() => onVerify?.(cert.id, CertificateStatus.VERIFIED)}
                             className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
                             title="Verify"
                           >
                             <CheckCircle size={18} />
                           </button>
-                          <button 
-                             onClick={() => onVerify?.(cert.id, CertificateStatus.REJECTED)}
-                             className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                             title="Reject"
+                          <button
+                            onClick={() => onVerify?.(cert.id, CertificateStatus.REJECTED)}
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            title="Reject"
                           >
                             <XCircle size={18} />
                           </button>
@@ -120,7 +128,7 @@ const CertificateTable: React.FC<CertificateTableProps> = ({ certificates, role,
 // Simple icon for table cell
 const FileText = ({ size }: { size: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/>
+    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><line x1="10" y1="9" x2="8" y2="9" />
   </svg>
 );
 
