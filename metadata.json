@@ -1,0 +1,7 @@
+{
+  "name": "CertHub - Centralized Certificate Management",
+  "description": "A professional platform for students to manage certificates, teachers to verify them, and admins to oversee the system.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

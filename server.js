@@ -1,0 +1,418 @@
+
+import express from 'express';
+import mysql from 'mysql2/promise';
+import { v2 as cloudinary } from 'cloudinary';
+import { GoogleGenAI, Type } from '@google/genai';
+import cors from 'cors';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+
+// --- CONFIGURATION ---
+// Put your keys in .env file or Vercel Environment Variables
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || process.env.GOOGLE_API_KEY });
+const JWT_SECRET = process.env.JWT_SECRET || 'certhub_super_secret_key';
+
+const dbConfig = {
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  port: process.env.DB_PORT || 3306
+};
+
+// --- ROUTES ---
+
+// Health Check
+app.get('/', (req, res) => {
+  res.send('CertHub API is running');
+});
+
+// Auth: Register
+app.post('/api/register', async (req, res) => {
+  try {
+    const { name, email, password, role } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const id = `u${Date.now()}`;
+    const avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`;
+
+    const connection = await mysql.createConnection(dbConfig);
+    try {
+      await connection.execute(
+        'INSERT INTO users (id, name, email, password, role, avatar) VALUES (?, ?, ?, ?, ?, ?)',
+        [id, name, email, hashedPassword, role, avatar]
+      );
+    } finally {
+      await connection.end();
+    }
+
+    const token = jwt.sign({ id, role }, JWT_SECRET);
+    res.json({ token, user: { id, name, email, role, avatar } });
+  } catch (err) {
+    console.error('Register Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Auth: Login
+app.post('/api/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const connection = await mysql.createConnection(dbConfig);
+    let rows;
+    try {
+      [rows] = await connection.execute('SELECT * FROM users WHERE email = ?', [email]);
+    } finally {
+      await connection.end();
+    }
+
+    if (rows.length === 0) return res.status(401).json({ error: 'User not found' });
+
+    const user = rows[0];
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) return res.status(401).json({ error: 'Invalid password' });
+
+    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET);
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar } });
+  } catch (err) {
+    console.error('Login Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Certificates: Upload & AI Analyze
+app.post('/api/certificates', async (req, res) => {
+  try {
+    const { title, platform, issuedDate, studentId, imageBase64 } = req.body;
+
+    // 1. Upload to Cloudinary
+    const uploadRes = await cloudinary.uploader.upload(imageBase64, {
+      folder: 'certhub_certificates'
+    });
+    const fileUrl = uploadRes.secure_url;
+
+    // 2. Insert to DB
+    const id = `c${Date.now()}`;
+    const connection = await mysql.createConnection(dbConfig);
+    try {
+      await connection.execute(
+        'INSERT INTO certificates (id, student_id, title, platform, issued_date, file_url, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [id, studentId, title, platform, issuedDate, fileUrl, 'PENDING']
+      );
+    } finally {
+      await connection.end();
+    }
+
+    // Return camelCase to match types.ts
+    res.json({ id, studentId, title, platform, issuedDate, fileUrl, status: 'PENDING' });
+  } catch (err) {
+    console.error('Upload Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Certificates: Get All (or filter by studentId)
+app.get('/api/certificates', async (req, res) => {
+  try {
+    const { studentId, teacherId } = req.query;
+    let query = 'SELECT * FROM certificates';
+    let params = [];
+
+    if (studentId) {
+      query += ' WHERE student_id = ?';
+      params.push(studentId);
+    }
+
+    // Note: For teacherId, we would need to join with users/mappings, but keeping it simple for now
+    // Assuming teacher wants to see all checks or logic handles it in frontend filtering for this MVP
+
+    const connection = await mysql.createConnection(dbConfig);
+    let rows;
+    try {
+      [rows] = await connection.execute(query, params);
+    } finally {
+      await connection.end();
+    }
+
+    // Map snake_case to camelCase
+    const certificates = rows.map(row => ({
+      id: row.id,
+      studentId: row.student_id,
+      title: row.title,
+      platform: row.platform,
+      issuedDate: row.issued_date,
+      fileUrl: row.file_url,
+      status: row.status,
+      remarks: row.remarks,
+      verifiedBy: row.verified_by,
+      verifiedAt: row.verified_at
+    }));
+
+    res.json(certificates);
+  } catch (err) {
+    console.error('Get Certificates Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Certificates: Update (Verify/Reject)
+app.put('/api/certificates/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, remarks, verifiedBy } = req.body;
+
+    const connection = await mysql.createConnection(dbConfig);
+    try {
+      await connection.execute(
+        'UPDATE certificates SET status = ?, remarks = ?, verified_by = ?, verified_at = NOW() WHERE id = ?',
+        [status, remarks || null, verifiedBy, id]
+      );
+    } finally {
+      await connection.end();
+    }
+
+    res.json({ success: true, id, status });
+  } catch (err) {
+    console.error('Update Certificate Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Users: Get All (for Teachers to see Students)
+app.get('/api/users', async (req, res) => {
+  try {
+    const { role } = req.query;
+    let query = 'SELECT id, name, email, role, avatar FROM users';
+    let params = [];
+
+    if (role) {
+      query += ' WHERE role = ?';
+      params.push(role);
+    }
+
+    const connection = await mysql.createConnection(dbConfig);
+    let rows;
+    try {
+      [rows] = await connection.execute(query, params);
+    } finally {
+      await connection.end();
+    }
+
+    res.json(rows);
+  } catch (err) {
+    console.error('Get Users Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// AI Analysis Proxy (Securely call Gemini from Backend)
+app.post('/api/analyze', async (req, res) => {
+  try {
+    const { imageBase64 } = req.body;
+    // Check various env var names for flexibility
+    const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+
+    const prompt = `Analyze this certificate. Extract student name, platform, course title. Check if authentic.`;
+
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents: [{
+        parts: [
+          { text: prompt },
+          { inlineData: { mimeType: "image/jpeg", data: imageBase64.split(',')[1] || imageBase64 } }
+        ]
+      }],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            isValid: { type: Type.BOOLEAN },
+            platform: { type: Type.STRING },
+            studentName: { type: Type.STRING },
+            courseTitle: { type: Type.STRING },
+            confidence: { type: Type.NUMBER },
+            extractedDetails: { type: Type.STRING }
+          },
+          required: ["isValid", "platform", "studentName", "courseTitle", "confidence"]
+        }
+      }
+    });
+
+    res.json(JSON.parse(response.text()));
+  } catch (err) {
+    console.error('AI Analysis Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// Platforms: Get All & Add
+app.get('/api/platforms', async (req, res) => {
+  try {
+    const connection = await mysql.createConnection(dbConfig);
+    let rows;
+    try {
+      [rows] = await connection.execute('SELECT * FROM platforms');
+    } finally {
+      await connection.end();
+    }
+    res.json(rows);
+  } catch (err) {
+    console.error('Get Platforms Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/platforms', async (req, res) => {
+  try {
+    const { name, color, icon } = req.body;
+    const id = `p${Date.now()}`;
+    const connection = await mysql.createConnection(dbConfig);
+    try {
+      await connection.execute(
+        'INSERT INTO platforms (id, name, color, icon) VALUES (?, ?, ?, ?)',
+        [id, name, color, icon]
+      );
+    } finally {
+      await connection.end();
+    }
+    res.json({ id, name, color, icon });
+  } catch (err) {
+    console.error('Add Platform Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Classes: Get All (for Admin) or Teacher
+app.get('/api/classes', async (req, res) => {
+  try {
+    const { teacherId } = req.query;
+    let query = 'SELECT classes.*, users.name as teacher_name, (SELECT COUNT(*) FROM class_enrollments WHERE class_id = classes.id) as student_count FROM classes JOIN users ON classes.teacher_id = users.id';
+    let params = [];
+
+    if (teacherId) {
+      query += ' WHERE teacher_id = ?';
+      params.push(teacherId);
+    }
+
+    const connection = await mysql.createConnection(dbConfig);
+    let rows;
+    try {
+      [rows] = await connection.execute(query, params);
+    } finally {
+      await connection.end();
+    }
+
+    const classes = rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      courseName: r.course_name,
+      teacherId: r.teacher_id,
+      teacherName: r.teacher_name,
+      studentCount: r.student_count
+    }));
+
+    res.json(classes);
+  } catch (err) {
+    console.error('Get Classes Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/classes', async (req, res) => {
+  try {
+    const { name, courseName, teacherId } = req.body;
+    const id = `cl${Date.now()}`;
+
+    const connection = await mysql.createConnection(dbConfig);
+    try {
+      await connection.execute(
+        'INSERT INTO classes (id, name, course_name, teacher_id) VALUES (?, ?, ?, ?)',
+        [id, name, courseName, teacherId]
+      );
+    } finally {
+      await connection.end();
+    }
+    res.json({ id, name, courseName, teacherId });
+  } catch (err) {
+    console.error('Create Class Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Classes: Enroll Students (Bulk)
+app.post('/api/classes/:id/enroll', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { studentIds } = req.body; // Array of IDs
+
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+      return res.json({ success: true, count: 0 }); // Nothing to do
+    }
+
+    const connection = await mysql.createConnection(dbConfig);
+    try {
+      // Using a transaction usually better, but simplified for now
+      // Or construct a bulk insert
+      const values = studentIds.map(sid => [`ce${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, id, sid]);
+
+      // Note: mysql2 bulk insert syntax slightly different than loop, let's use loop for safety if small batch
+      // Or simple bulk:
+      let query = 'INSERT IGNORE INTO class_enrollments (id, class_id, student_id) VALUES ?';
+      await connection.query(query, [values]);
+    } finally {
+      await connection.end();
+    }
+
+    res.json({ success: true, count: studentIds.length });
+  } catch (err) {
+    console.error('Enroll Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get Students in a Class
+app.get('/api/classes/:id/students', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connection = await mysql.createConnection(dbConfig);
+    let rows;
+    try {
+      [rows] = await connection.execute(
+        `SELECT users.id, users.name, users.email, users.avatar 
+                 FROM class_enrollments 
+                 JOIN users ON class_enrollments.student_id = users.id 
+                 WHERE class_enrollments.class_id = ?`,
+        [id]
+      );
+    } finally {
+      await connection.end();
+    }
+    res.json(rows);
+  } catch (err) {
+    console.error('Get Class Students Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Export for Vercel
+export default app;
+
+const PORT = process.env.PORT || 5000;
+// Only listen if not running in Vercel (Vercel handles this automatically)
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => console.log(`CertHub Server running on port ${PORT}`));
+}
