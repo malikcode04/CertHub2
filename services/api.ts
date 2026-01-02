@@ -73,17 +73,6 @@ export const api = {
         return res.json();
     },
 
-    // AI
-    analyzeCertificate: async (imageBase64: string) => {
-        const res = await fetch(`${API_URL}/analyze`, {
-            method: 'POST',
-            headers: getHeaders(),
-            body: JSON.stringify({ imageBase64 })
-        });
-        if (!res.ok) throw new Error(await res.text());
-        return res.json();
-    },
-
     // Platforms
     getPlatforms: async (): Promise<any[]> => {
         const res = await fetch(`${API_URL}/platforms`, { headers: getHeaders() });

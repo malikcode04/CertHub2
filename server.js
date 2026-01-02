@@ -2,7 +2,7 @@
 import express from 'express';
 import mysql from 'mysql2/promise';
 import { v2 as cloudinary } from 'cloudinary';
-import { GoogleGenAI, Type } from '@google/genai';
+import { v2 as cloudinary } from 'cloudinary';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -41,12 +41,11 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-const apiKey = process.env.API_KEY || process.env.GOOGLE_API_KEY;
-let ai = null;
-if (apiKey) {
-  ai = new GoogleGenAI(apiKey);
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+  console.error('❌ CRITICAL: JWT_SECRET is missing in production!');
+  process.exit(1);
 }
-const JWT_SECRET = process.env.JWT_SECRET || 'certhub_super_secret_key';
 
 const dbConfig = {
   host: process.env.DB_HOST,
@@ -441,57 +440,6 @@ app.get('/api/users', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
-// AI Analysis Proxy (Securely call Gemini from Backend)
-app.post('/api/analyze', async (req, res) => {
-  try {
-    if (!ai) {
-      return res.status(400).json({
-        error: 'AI Analysis is disabled. No Google API Key provided in environment variables.'
-      });
-    }
-    const { imageBase64 } = req.body;
-    // Check various env var names for flexibility
-    const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
-
-    const prompt = `Analyze this certificate. Extract student name, platform, course title. Check if authentic.`;
-
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: [{
-        parts: [
-          { text: prompt },
-          { inlineData: { mimeType: "image/jpeg", data: imageBase64.split(',')[1] || imageBase64 } }
-        ]
-      }],
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            isValid: { type: Type.BOOLEAN },
-            platform: { type: Type.STRING },
-            studentName: { type: Type.STRING },
-            courseTitle: { type: Type.STRING },
-            confidence: { type: Type.NUMBER },
-            extractedDetails: { type: Type.STRING }
-          },
-          required: ["isValid", "platform", "studentName", "courseTitle", "confidence"]
-        }
-      }
-    });
-
-    res.json(JSON.parse(response.text()));
-  } catch (err) {
-    console.error('AI Analysis Error:', err);
-    // If it's an API key error, return a more helpful 400 error instead of 500
-    if (err.message?.includes('API key not valid') || err.message?.includes('400')) {
-      return res.status(400).json({ error: 'The Google API Key provided is invalid. Please check your .env file or disable AI features.' });
-    }
-    res.status(500).json({ error: err.message });
-  }
-});
-
 
 // Platforms: Get All & Add
 app.get('/api/platforms', async (req, res) => {
