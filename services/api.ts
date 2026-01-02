@@ -1,7 +1,7 @@
 
 import { User, Certificate } from '../types';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://malik-certhub.onrender.com/api';
 
 const getHeaders = () => {
     const token = localStorage.getItem('token'); // Assuming you store JWT in localStorage on login
