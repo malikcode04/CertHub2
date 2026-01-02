@@ -112,9 +112,24 @@ const initDB = async () => {
       )
     `);
 
+    // Auto-migrate: Add roll_number to users if not exists
+    try {
+      await connection.execute('ALTER TABLE users ADD COLUMN roll_number VARCHAR(255)');
+      console.log('Added roll_number column to users table');
+    } catch (err) {
+      // Ignore if column already exists (Error 1060 in MySQL)
+      if (err.errno !== 1060) {
+        console.error('Migration Error (roll_number):', err);
+      }
+    }
+
     // Performance Indexes
-    await connection.execute('ALTER TABLE certificates ADD INDEX IF NOT EXISTS idx_student (student_id)');
-    await connection.execute('ALTER TABLE certificates ADD INDEX IF NOT EXISTS idx_status (status)');
+    try {
+      await connection.execute('ALTER TABLE certificates ADD INDEX idx_student (student_id)');
+    } catch (e) { /* ignore if exists */ }
+    try {
+      await connection.execute('ALTER TABLE certificates ADD INDEX idx_status (status)');
+    } catch (e) { /* ignore if exists */ }
 
     console.log('Database tables and indexes initialized');
   } catch (err) {
