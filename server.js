@@ -469,6 +469,10 @@ app.post('/api/analyze', async (req, res) => {
     res.json(JSON.parse(response.text()));
   } catch (err) {
     console.error('AI Analysis Error:', err);
+    // If it's an API key error, return a more helpful 400 error instead of 500
+    if (err.message?.includes('API key not valid') || err.message?.includes('400')) {
+      return res.status(400).json({ error: 'The Google API Key provided is invalid. Please check your .env file or disable AI features.' });
+    }
     res.status(500).json({ error: err.message });
   }
 });

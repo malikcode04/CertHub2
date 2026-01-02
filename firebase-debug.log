@@ -1,0 +1,51 @@
+[debug] [2026-01-02T15:43:43.612Z] ----------------------------------------------------------------------
+[debug] [2026-01-02T15:43:43.615Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Lenovo\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js init hosting
+[debug] [2026-01-02T15:43:43.615Z] CLI Version:   15.1.0
+[debug] [2026-01-02T15:43:43.615Z] Platform:      win32
+[debug] [2026-01-02T15:43:43.616Z] Node Version:  v22.20.0
+[debug] [2026-01-02T15:43:43.616Z] Time:          Fri Jan 02 2026 21:13:43 GMT+0530 (India Standard Time)
+[debug] [2026-01-02T15:43:43.616Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-01-02T15:43:43.619Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[info] 
+     ######## #### ########  ######## ########     ###     ######  ########
+     ##        ##  ##     ## ##       ##     ##  ##   ##  ##       ##
+     ######    ##  ########  ######   ########  #########  ######  ######
+     ##        ##  ##    ##  ##       ##     ## ##     ##       ## ##
+     ##       #### ##     ## ######## ########  ##     ##  ######  ########
+
+You're about to initialize a Firebase project in this directory:
+
+  C:\Users\Lenovo\Downloads\certhub
+
+Before we get started, keep in mind:
+
+  * You are initializing within an existing Firebase project directory
+
+[debug] [2026-01-02T15:43:47.668Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
+[debug] [2026-01-02T15:43:47.670Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
+[info] 
+=== Project Setup
+[info] 
+[info] First, let's associate this project directory with a Firebase project.
+[info] You can create multiple project aliases by running firebase use --add, 
+[info] 
+[debug] [2026-01-02T15:44:00.823Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-01-02T15:44:00.823Z] > authorizing via signed-in user (malikajaz2894@gmail.com)
+[debug] [2026-01-02T15:44:00.824Z] Checked if tokens are valid: false, expires at: 1767292782761
+[debug] [2026-01-02T15:44:00.825Z] Checked if tokens are valid: false, expires at: 1767292782761
+[debug] [2026-01-02T15:44:00.825Z] > refreshing access token with scopes: []
+[debug] [2026-01-02T15:44:00.826Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-01-02T15:44:00.826Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-01-02T15:44:01.092Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-01-02T15:44:01.093Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-01-02T15:44:01.145Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/certhub-demo [none]
+[debug] [2026-01-02T15:44:02.223Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/certhub-demo 403
+[debug] [2026-01-02T15:44:02.224Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/certhub-demo {"error":{"code":403,"message":"The caller does not have permission","status":"PERMISSION_DENIED"}}
+[debug] [2026-01-02T15:44:02.226Z] Request to https://firebase.googleapis.com/v1beta1/projects/certhub-demo had HTTP Error: 403, The caller does not have permission
+[debug] [2026-01-02T15:44:02.814Z] FirebaseError: Request to https://firebase.googleapis.com/v1beta1/projects/certhub-demo had HTTP Error: 403, The caller does not have permission
+    at responseToError (C:\Users\Lenovo\AppData\Roaming\npm\node_modules\firebase-tools\lib\responseToError.js:53:12)
+    at RetryOperation._fn (C:\Users\Lenovo\AppData\Roaming\npm\node_modules\firebase-tools\lib\apiv2.js:322:77)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[error] 
+[error] Error: Failed to get Firebase project certhub-demo. Please make sure the project exists and your account has permission to access it.
