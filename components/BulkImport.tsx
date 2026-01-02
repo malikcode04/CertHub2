@@ -42,9 +42,7 @@ const BulkImport: React.FC<BulkImportProps> = ({ onSuccess }) => {
                     name: user.name,
                     email: user.email,
                     password: user.password || 'Student@123',
-                    role: 'STUDENT',
-                    rollNumber: user.rollNumber,
-                    classId: user.classId
+                    role: 'STUDENT'
                 });
                 success++;
             } catch (err: any) {
@@ -66,7 +64,7 @@ const BulkImport: React.FC<BulkImportProps> = ({ onSuccess }) => {
                 </div>
                 <div>
                     <h2 className="text-xl font-black text-slate-800">Bulk Student Import</h2>
-                    <p className="text-sm text-slate-500">Upload CSV with: name, email, rollNumber, classId</p>
+                    <p className="text-sm text-slate-500">Upload CSV with: name, email, password</p>
                 </div>
             </div>
 
