@@ -100,7 +100,7 @@ const initDB = async () => {
 
     // 1. Ensure 'users' table exists with CORE columns only
     await connection.execute(`
-      CREATE TABLE IF NOT EXISTS users (
+      CREATE TABLE IF NOT EXISTS users_v3 (
         id VARCHAR(255) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         email VARCHAR(255) UNIQUE NOT NULL,
@@ -262,7 +262,7 @@ app.post('/api/register', async (req, res) => {
     const connection = await mysql.createConnection(dbConfig);
 
     try {
-      const [existing] = await connection.execute('SELECT * FROM users WHERE email = ?', [email]);
+      const [existing] = await connection.execute('SELECT * FROM users_v3 WHERE email = ?', [email]);
       if (existing.length > 0) {
         return res.status(400).json({ error: 'User already exists' });
       }
@@ -273,7 +273,7 @@ app.post('/api/register', async (req, res) => {
 
       // Insert User (Simplified: No roll_number)
       await connection.execute(
-        'INSERT INTO users (id, name, email, password, role, avatar) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO users_v3 (id, name, email, password, role, avatar) VALUES (?, ?, ?, ?, ?, ?)',
         [id, name, email, hashedPassword, role, avatar]
       );
 
@@ -300,7 +300,7 @@ app.post('/api/login', async (req, res) => {
     const connection = await mysql.createConnection(dbConfig);
     let rows;
     try {
-      [rows] = await connection.execute('SELECT * FROM users WHERE email = ?', [email]);
+      [rows] = await connection.execute('SELECT * FROM users_v3 WHERE email = ?', [email]);
     } finally {
       await connection.end();
     }
