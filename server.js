@@ -41,7 +41,11 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || process.env.GOOGLE_API_KEY });
+const apiKey = process.env.API_KEY || process.env.GOOGLE_API_KEY;
+let ai = null;
+if (apiKey) {
+  ai = new GoogleGenAI(apiKey);
+}
 const JWT_SECRET = process.env.JWT_SECRET || 'certhub_super_secret_key';
 
 const dbConfig = {
@@ -58,15 +62,21 @@ import nodemailer from 'nodemailer';
 // --- CONFIGURATION ---
 // ... (rest of config)
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
+const transporter = (process.env.EMAIL_USER && process.env.EMAIL_PASS)
+  ? nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    }
+  })
+  : null;
 
 const sendEmail = async (to, subject, text, html) => {
+  if (!transporter) {
+    console.log('Skipping email: No credentials configured');
+    return;
+  }
   try {
     await transporter.sendMail({ from: process.env.EMAIL_USER, to, subject, text, html });
   } catch (err) {
@@ -76,7 +86,7 @@ const sendEmail = async (to, subject, text, html) => {
 
 // --- HELPER ---
 const validateEnv = () => {
-  const required = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'API_KEY', 'CLOUDINARY_CLOUD_NAME'];
+  const required = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'CLOUDINARY_CLOUD_NAME'];
   const missing = required.filter(key => !process.env[key]);
   if (missing.length > 0) {
     console.error(`❌ CRITICAL: Missing environment variables: ${missing.join(', ')}`);
@@ -420,6 +430,11 @@ app.get('/api/users', async (req, res) => {
 // AI Analysis Proxy (Securely call Gemini from Backend)
 app.post('/api/analyze', async (req, res) => {
   try {
+    if (!ai) {
+      return res.status(400).json({
+        error: 'AI Analysis is disabled. No Google API Key provided in environment variables.'
+      });
+    }
     const { imageBase64 } = req.body;
     // Check various env var names for flexibility
     const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
