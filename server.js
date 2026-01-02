@@ -110,12 +110,22 @@ const initDB = async () => {
       )
     `);
 
-    // Migration: Specifically ensure 'roll_number' column exists
-    try {
-      await connection.execute('ALTER TABLE users ADD COLUMN roll_number VARCHAR(255)');
-      console.log('✅ Migration: Added roll_number column to users');
-    } catch (e) {
-      if (e.errno !== 1060) console.error('Migration Error (roll_number):', e);
+    // Migrations: Ensure all modern columns exist for existing tables
+    const migrations = [
+      'ALTER TABLE users ADD COLUMN roll_number VARCHAR(255)',
+      'ALTER TABLE users ADD COLUMN avatar VARCHAR(255)',
+      'ALTER TABLE users ADD COLUMN role ENUM(\'STUDENT\', \'TEACHER\', \'ADMIN\') NOT NULL DEFAULT \'STUDENT\''
+    ];
+
+    for (const sql of migrations) {
+      try {
+        await connection.execute(sql);
+        console.log(`✅ Migration Success: ${sql}`);
+      } catch (e) {
+        if (e.errno !== 1060 && e.errno !== 1061) { // 1060 = duplicate column, 1061 = duplicate key
+          console.warn(`⚠️ Migration Note: ${sql} - ${e.message}`);
+        }
+      }
     }
 
     // 2. Ensure supporting tables exist
@@ -213,6 +223,19 @@ const logAction = async (userId, userName, action, details) => {
 // Health Check
 app.get('/', (req, res) => {
   res.send('CertHub API is running');
+});
+
+// Debug Schema (To help find missing columns deeply)
+app.get('/api/debug-db-status', async (req, res) => {
+  try {
+    const connection = await mysql.createConnection(dbConfig);
+    const [usersTable] = await connection.execute('DESCRIBE users');
+    const [auditTable] = await connection.execute('DESCRIBE audit_logs');
+    await connection.end();
+    res.json({ users: usersTable, audit_logs: auditTable });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Public: Verify Certificate (No Auth Required)
