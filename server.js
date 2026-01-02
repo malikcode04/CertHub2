@@ -96,70 +96,65 @@ validateEnv();
 const initDB = async () => {
   const connection = await mysql.createConnection(dbConfig);
   try {
-    // 1. Ensure 'users' table exists with all modern columns
+    console.log(`🔗 Checking database schema at ${dbConfig.host}...`);
+
+    // 1. Ensure 'users' table exists with all columns
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS users (
         id VARCHAR(255) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         email VARCHAR(255) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
-        role ENUM('STUDENT', 'TEACHER', 'ADMIN') NOT NULL,
+        roll_number VARCHAR(255),
+        role ENUM('STUDENT', 'TEACHER', 'ADMIN') NOT NULL DEFAULT 'STUDENT',
         avatar VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
-    // Migrations: Ensure all modern columns exist for existing tables
+    // Proactive Column Checks (Migrations)
     const migrations = [
-      'ALTER TABLE users ADD COLUMN roll_number VARCHAR(255)',
-      'ALTER TABLE users ADD COLUMN avatar VARCHAR(255)',
-      'ALTER TABLE users ADD COLUMN role ENUM(\'STUDENT\', \'TEACHER\', \'ADMIN\') NOT NULL DEFAULT \'STUDENT\''
+      'ALTER TABLE users ADD COLUMN roll_number VARCHAR(255) AFTER password',
+      'ALTER TABLE users ADD COLUMN avatar VARCHAR(255) AFTER role',
+      'ALTER TABLE users MODIFY COLUMN role ENUM(\'STUDENT\', \'TEACHER\', \'ADMIN\') NOT NULL DEFAULT \'STUDENT\''
     ];
 
     for (const sql of migrations) {
       try {
         await connection.execute(sql);
-        console.log(`✅ Migration Success: ${sql}`);
+        console.log(`✅ Database Migration: ${sql}`);
       } catch (e) {
-        if (e.errno !== 1060 && e.errno !== 1061) { // 1060 = duplicate column, 1061 = duplicate key
-          console.warn(`⚠️ Migration Note: ${sql} - ${e.message}`);
+        // 1060 = Duplicate column, 1061 = Duplicate key (ignore these)
+        if (e.errno !== 1060 && e.errno !== 1061) {
+          console.warn(`⚠️ Migration Warning (${sql}): ${e.message}`);
         }
       }
     }
 
-    // 2. Ensure supporting tables exist
-    await connection.execute(`
-      CREATE TABLE IF NOT EXISTS platforms (
+    // 2. Supporting Tables
+    const tables = [
+      `CREATE TABLE IF NOT EXISTS platforms (
         id VARCHAR(255) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         color VARCHAR(50) DEFAULT 'bg-slate-500',
         icon VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await connection.execute(`
-      CREATE TABLE IF NOT EXISTS classes (
+      )`,
+      `CREATE TABLE IF NOT EXISTS classes (
         id VARCHAR(255) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         course_name VARCHAR(255) NOT NULL,
         teacher_id VARCHAR(255) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await connection.execute(`
-      CREATE TABLE IF NOT EXISTS class_enrollments (
+      )`,
+      `CREATE TABLE IF NOT EXISTS class_enrollments (
         id VARCHAR(255) PRIMARY KEY,
         class_id VARCHAR(255) NOT NULL,
         student_id VARCHAR(255) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY unique_enrollment (class_id, student_id)
-      )
-    `);
-
-    await connection.execute(`
-      CREATE TABLE IF NOT EXISTS certificates (
+      )`,
+      `CREATE TABLE IF NOT EXISTS certificates (
         id VARCHAR(255) PRIMARY KEY,
         student_id VARCHAR(255) NOT NULL,
         title VARCHAR(255) NOT NULL,
@@ -171,36 +166,34 @@ const initDB = async () => {
         verified_by VARCHAR(255),
         verified_at TIMESTAMP NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await connection.execute(`
-      CREATE TABLE IF NOT EXISTS audit_logs (
+      )`,
+      `CREATE TABLE IF NOT EXISTS audit_logs (
         id VARCHAR(255) PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
         user_name VARCHAR(255),
         action VARCHAR(255) NOT NULL,
         details TEXT,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+      )`
+    ];
+
+    for (const sql of tables) {
+      await connection.execute(sql);
+    }
 
     // Performance Indexes
-    try {
-      await connection.execute('ALTER TABLE certificates ADD INDEX idx_student (student_id)');
-    } catch (e) { }
-    try {
-      await connection.execute('ALTER TABLE certificates ADD INDEX idx_status (status)');
-    } catch (e) { }
+    try { await connection.execute('ALTER TABLE certificates ADD INDEX idx_student (student_id)'); } catch (e) { }
+    try { await connection.execute('ALTER TABLE certificates ADD INDEX idx_status (status)'); } catch (e) { }
 
     console.log('✅ Database Schema Synchronized');
   } catch (err) {
-    console.error('❌ DB Init Error:', err);
+    console.error('❌ Database Initialization Failed:', err);
+    throw err;
   } finally {
     await connection.end();
   }
 };
-initDB();
+// Removed: initDB(); (We will call it in the listen block)
 
 const logAction = async (userId, userName, action, details) => {
   const connection = await mysql.createConnection(dbConfig);
@@ -680,7 +673,12 @@ app.use((err, req, res, next) => {
 export default app;
 
 const PORT = process.env.PORT || 5000;
-// Vercel handles listen automatically, but Render/Standard hosts need it
+// Render/Standard hosts need to listen and init DB
 if (process.env.NODE_ENV !== 'production' || process.env.RENDER || !process.env.VERCEL) {
-  app.listen(PORT, () => console.log(`CertHub Server running on port ${PORT}`));
+  initDB().then(() => {
+    app.listen(PORT, () => console.log(`🚀 CertHub Server running on http://localhost:${PORT}`));
+  }).catch(err => {
+    console.error('🛑 Server failed to start due to DB initialization error');
+    process.exit(1);
+  });
 }
