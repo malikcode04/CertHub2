@@ -97,7 +97,74 @@ validateEnv();
 const initDB = async () => {
   const connection = await mysql.createConnection(dbConfig);
   try {
-    // Tables
+    // 1. Ensure 'users' table exists with all modern columns
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        role ENUM('STUDENT', 'TEACHER', 'ADMIN') NOT NULL,
+        avatar VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Migration: Specifically ensure 'roll_number' column exists
+    try {
+      await connection.execute('ALTER TABLE users ADD COLUMN roll_number VARCHAR(255)');
+      console.log('✅ Migration: Added roll_number column to users');
+    } catch (e) {
+      if (e.errno !== 1060) console.error('Migration Error (roll_number):', e);
+    }
+
+    // 2. Ensure supporting tables exist
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS platforms (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        color VARCHAR(50) DEFAULT 'bg-slate-500',
+        icon VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS classes (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        course_name VARCHAR(255) NOT NULL,
+        teacher_id VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS class_enrollments (
+        id VARCHAR(255) PRIMARY KEY,
+        class_id VARCHAR(255) NOT NULL,
+        student_id VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_enrollment (class_id, student_id)
+      )
+    `);
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS certificates (
+        id VARCHAR(255) PRIMARY KEY,
+        student_id VARCHAR(255) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        platform VARCHAR(255) NOT NULL,
+        issued_date DATE NOT NULL,
+        file_url TEXT NOT NULL,
+        status ENUM('PENDING', 'VERIFIED', 'REJECTED') DEFAULT 'PENDING',
+        remarks TEXT,
+        verified_by VARCHAR(255),
+        verified_at TIMESTAMP NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id VARCHAR(255) PRIMARY KEY,
@@ -105,34 +172,21 @@ const initDB = async () => {
         user_name VARCHAR(255),
         action VARCHAR(255) NOT NULL,
         details TEXT,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_user (user_id),
-        INDEX idx_action (action)
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-
-    // Auto-migrate: Add roll_number to users if not exists
-    try {
-      await connection.execute('ALTER TABLE users ADD COLUMN roll_number VARCHAR(255)');
-      console.log('Added roll_number column to users table');
-    } catch (err) {
-      // Ignore if column already exists (Error 1060 in MySQL)
-      if (err.errno !== 1060) {
-        console.error('Migration Error (roll_number):', err);
-      }
-    }
 
     // Performance Indexes
     try {
       await connection.execute('ALTER TABLE certificates ADD INDEX idx_student (student_id)');
-    } catch (e) { /* ignore if exists */ }
+    } catch (e) { }
     try {
       await connection.execute('ALTER TABLE certificates ADD INDEX idx_status (status)');
-    } catch (e) { /* ignore if exists */ }
+    } catch (e) { }
 
-    console.log('Database tables and indexes initialized');
+    console.log('✅ Database Schema Synchronized');
   } catch (err) {
-    console.error('DB Init Error:', err);
+    console.error('❌ DB Init Error:', err);
   } finally {
     await connection.end();
   }
