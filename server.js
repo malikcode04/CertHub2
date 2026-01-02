@@ -2,7 +2,6 @@
 import express from 'express';
 import mysql from 'mysql2/promise';
 import { v2 as cloudinary } from 'cloudinary';
-import { v2 as cloudinary } from 'cloudinary';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
