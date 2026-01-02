@@ -1,38 +1,47 @@
+# 🎓 CertHub: Centralized Certificate Management
 
-# 🚀 CertHub Production Deployment Guide
+CertHub is a professional, cloud-based platform designed to simplify the management and verification of educational and professional certificates. It provides a structured environment for Students, Teachers, and Administrators to handle certificate uploads, verification workflows, and secure storage.
 
-Follow these steps to deploy CertHub as a real-world application.
+---
 
-## 1. Prerequisites
-- **MySQL**: Local installation or Cloud instance (e.g., Aiven, DigitalOcean).
-- **Node.js**: Installed on your machine.
-- **Accounts**: Cloudinary (Image storage), Render (Backend), Firebase (Frontend).
+## 🌟 Purpose
+Managing certificates across multiple platforms (Coursera, Udemy, EdX, etc.) can be messy. CertHub centralizes everything into one single "Hub." It allows institutions and individuals to verify credentials instantly, ensuring that achievements are documented, verified, and always accessible.
 
-## 2. Backend Setup (Render)
-1. Initialize a new repo with `server.js` and `package.json`.
-2. Create a "Web Service" on Render.
-3. Add these Environment Variables:
-   - `DB_HOST`: Your MySQL host.
-   - `DB_USER`: Your MySQL username.
-   - `DB_PASSWORD`: Your MySQL password.
-   - `DB_NAME`: Your MySQL database name.
-   - `CLOUDINARY_CLOUD_NAME`: From Cloudinary dashboard.
-   - `CLOUDINARY_API_KEY`: From Cloudinary dashboard.
-   - `CLOUDINARY_API_SECRET`: From Cloudinary dashboard.
-   - `API_KEY`: Your Google Gemini API Key.
-   - `JWT_SECRET`: A long random string.
+---
 
-## 3. Database Setup
-1. Open your MySQL client (Workbench, phpMyAdmin).
-2. Execute the contents of `database/schema.sql`.
+## 🚀 Key Features
+- **Multi-Role Dashboards**: Tailored experiences for Students, Instructors, and System Admins.
+- **Secure Cloud Storage**: High-speed certificate hosting via Cloudinary.
+- **Verification Workflow**: Seamless approval/rejection process with instructor feedback.
+- **Public Verification**: Instant certificate validation via unique public links for employers or institutions.
+- **Audit Logging**: Fully transparent tracking of every action taken within the system.
 
-## 4. Frontend Setup (Firebase)
-1. In `App.tsx`, change `API_BASE_URL` to your Render URL.
-2. Install Firebase CLI: `npm install -g firebase-tools`.
-3. Run `firebase login`.
-4. Run `firebase init hosting`.
-5. Run `npm run build`.
-6. Deploy: `firebase deploy`.
+---
 
-## 5. Security Note
-All sensitive operations (AI Analysis, Database credentials) are now handled on the **Backend (Render)** to ensure users cannot see your private keys in the browser.
+## 🛠 How to Use
+
+### 1. For Students 🎓
+- **Upload**: Navigate to your dashboard and click "Upload." Fill in the certificate details and upload an image of your certificate.
+- **Track**: Your dashboard will show you the real-time status (Pending, Verified, or Rejected) of your submissions.
+- **Share**: Use the public verification links to show off your verified achievements!
+
+### 2. For Instructors (Teachers) 🛡️
+- **Review**: View a list of all submitted certificates from your students.
+- **Verify**: Inspect the uploaded image and click "Verify" to approve or "Reject" to send it back with comments.
+
+### 3. For Administrators 👑
+- **Manage**: Add or modify the platforms (e.g., "Google", "Microsoft") allowed in the system.
+- **Audit**: Monitor the "Audit Logs" to see exactly who did what and when.
+- **Control**: Oversee all users and certificates within the entire hub.
+
+---
+
+## ⚙️ Tech Stack
+- **Frontend**: React (Vite), TypeScript, Tailwind CSS.
+- **Backend**: Node.js, Express.
+- **Database**: MySQL (TiDB Cloud).
+- **Storage**: Cloudinary (Image Hosting).
+- **Security**: JWT Authentication, Bcrypt Hashing, and Rate Limiting.
+
+---
+*CertHub: One Hub. All Certificates. Total Trust.*
