@@ -98,38 +98,18 @@ const initDB = async () => {
   try {
     console.log(`🔗 Checking database schema at ${dbConfig.host}...`);
 
-    // 1. Ensure 'users' table exists with all columns
+    // 1. Ensure 'users' table exists with CORE columns only
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS users (
         id VARCHAR(255) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         email VARCHAR(255) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
-        roll_number VARCHAR(255),
         role ENUM('STUDENT', 'TEACHER', 'ADMIN') NOT NULL DEFAULT 'STUDENT',
         avatar VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-
-    // Proactive Column Checks (Migrations)
-    const migrations = [
-      'ALTER TABLE users ADD COLUMN roll_number VARCHAR(255) AFTER password',
-      'ALTER TABLE users ADD COLUMN avatar VARCHAR(255) AFTER role',
-      'ALTER TABLE users MODIFY COLUMN role ENUM(\'STUDENT\', \'TEACHER\', \'ADMIN\') NOT NULL DEFAULT \'STUDENT\''
-    ];
-
-    for (const sql of migrations) {
-      try {
-        await connection.execute(sql);
-        console.log(`✅ Database Migration: ${sql}`);
-      } catch (e) {
-        // 1060 = Duplicate column, 1061 = Duplicate key (ignore these)
-        if (e.errno !== 1060 && e.errno !== 1061) {
-          console.warn(`⚠️ Migration Warning (${sql}): ${e.message}`);
-        }
-      }
-    }
 
     // 2. Supporting Tables
     const tables = [
@@ -151,8 +131,7 @@ const initDB = async () => {
         id VARCHAR(255) PRIMARY KEY,
         class_id VARCHAR(255) NOT NULL,
         student_id VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY unique_enrollment (class_id, student_id)
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
       `CREATE TABLE IF NOT EXISTS certificates (
         id VARCHAR(255) PRIMARY KEY,
@@ -217,15 +196,19 @@ app.get('/', (req, res) => {
   res.send('CertHub API is running');
 });
 
-// Debug Schema (To help find missing columns deeply)
-app.get('/api/debug-db-status', async (req, res) => {
+// Admin: Audit Logs
+app.get('/api/admin/logs', async (req, res) => {
   try {
     const connection = await mysql.createConnection(dbConfig);
-    const [usersTable] = await connection.execute('DESCRIBE users');
-    const [auditTable] = await connection.execute('DESCRIBE audit_logs');
-    await connection.end();
-    res.json({ users: usersTable, audit_logs: auditTable });
+    let rows;
+    try {
+      [rows] = await connection.execute('SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 100');
+    } finally {
+      await connection.end();
+    }
+    res.json(rows);
   } catch (err) {
+    console.error('Get Logs Error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -251,10 +234,10 @@ app.get('/api/public/certificates/:id', async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ error: 'Certificate not found' });
 
     const row = rows[0];
-    const cert = {
+    res.json({
       id: row.id,
       studentId: row.student_id,
-      student_name: row.student_name, // Keep for now as used in Public view
+      studentName: row.student_name,
       title: row.title,
       platform: row.platform,
       issuedDate: row.issued_date,
@@ -263,29 +246,9 @@ app.get('/api/public/certificates/:id', async (req, res) => {
       remarks: row.remarks,
       verifiedBy: row.verified_by,
       verifiedAt: row.verified_at
-    };
-
-    res.json(cert);
+    });
   } catch (err) {
     console.error('Public Verify Error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-
-// Admin: Audit Logs
-app.get('/api/admin/logs', async (req, res) => {
-  try {
-    const connection = await mysql.createConnection(dbConfig);
-    let rows;
-    try {
-      [rows] = await connection.execute('SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 100');
-    } finally {
-      await connection.end();
-    }
-    res.json(rows);
-  } catch (err) {
-    console.error('Get Logs Error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -293,7 +256,7 @@ app.get('/api/admin/logs', async (req, res) => {
 // Auth: Register
 app.post('/api/register', async (req, res) => {
   try {
-    const { name, email, password, role, rollNumber, classId } = req.body;
+    const { name, email, password, role } = req.body;
 
     // Check if user exists
     const connection = await mysql.createConnection(dbConfig);
@@ -308,27 +271,18 @@ app.post('/api/register', async (req, res) => {
       const avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`;
       const id = `u${Date.now()}`;
 
-      // Insert User
+      // Insert User (Simplified: No roll_number)
       await connection.execute(
-        'INSERT INTO users (id, name, email, password, role, avatar, roll_number) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [id, name, email, hashedPassword, role, avatar, rollNumber || null]
+        'INSERT INTO users (id, name, email, password, role, avatar) VALUES (?, ?, ?, ?, ?, ?)',
+        [id, name, email, hashedPassword, role, avatar]
       );
-
-      // Auto-enroll in class if Student and classId provided
-      if (role === 'STUDENT' && classId) {
-        const enrollId = `ce${Date.now()}`;
-        await connection.execute(
-          'INSERT INTO class_enrollments (id, class_id, student_id) VALUES (?, ?, ?)',
-          [enrollId, classId, id]
-        );
-      }
 
       const token = jwt.sign({ id, role }, JWT_SECRET, { expiresIn: '1d' });
 
       // Audit Log
       await logAction(id, name, 'REGISTER', `User registered as ${role}`);
 
-      res.json({ token, user: { id, name, email, role, avatar, rollNumber } });
+      res.json({ token, user: { id, name, email, role, avatar } });
 
     } finally {
       await connection.end();
@@ -547,117 +501,7 @@ app.post('/api/platforms', async (req, res) => {
   }
 });
 
-// Classes: Get All (for Admin) or Teacher
-app.get('/api/classes', async (req, res) => {
-  try {
-    const { teacherId } = req.query;
-    let query = 'SELECT classes.*, users.name as teacher_name, (SELECT COUNT(*) FROM class_enrollments WHERE class_id = classes.id) as student_count FROM classes JOIN users ON classes.teacher_id = users.id';
-    let params = [];
-
-    if (teacherId) {
-      query += ' WHERE teacher_id = ?';
-      params.push(teacherId);
-    }
-
-    const connection = await mysql.createConnection(dbConfig);
-    let rows;
-    try {
-      [rows] = await connection.execute(query, params);
-    } finally {
-      await connection.end();
-    }
-
-    const classes = rows.map(r => ({
-      id: r.id,
-      name: r.name,
-      courseName: r.course_name,
-      teacherId: r.teacher_id,
-      teacherName: r.teacher_name,
-      studentCount: r.student_count
-    }));
-
-    res.json(classes);
-  } catch (err) {
-    console.error('Get Classes Error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/classes', async (req, res) => {
-  try {
-    const { name, courseName, teacherId } = req.body;
-    const id = `cl${Date.now()}`;
-
-    const connection = await mysql.createConnection(dbConfig);
-    try {
-      await connection.execute(
-        'INSERT INTO classes (id, name, course_name, teacher_id) VALUES (?, ?, ?, ?)',
-        [id, name, courseName, teacherId]
-      );
-    } finally {
-      await connection.end();
-    }
-    res.json({ id, name, courseName, teacherId });
-  } catch (err) {
-    console.error('Create Class Error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Classes: Enroll Students (Bulk)
-app.post('/api/classes/:id/enroll', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { studentIds } = req.body; // Array of IDs
-
-    if (!Array.isArray(studentIds) || studentIds.length === 0) {
-      return res.json({ success: true, count: 0 }); // Nothing to do
-    }
-
-    const connection = await mysql.createConnection(dbConfig);
-    try {
-      // Using a transaction usually better, but simplified for now
-      // Or construct a bulk insert
-      const values = studentIds.map(sid => [`ce${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, id, sid]);
-
-      // Note: mysql2 bulk insert syntax slightly different than loop, let's use loop for safety if small batch
-      // Or simple bulk:
-      let query = 'INSERT IGNORE INTO class_enrollments (id, class_id, student_id) VALUES ?';
-      await connection.query(query, [values]);
-    } finally {
-      await connection.end();
-    }
-
-    res.json({ success: true, count: studentIds.length });
-  } catch (err) {
-    console.error('Enroll Error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Get Students in a Class
-app.get('/api/classes/:id/students', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const connection = await mysql.createConnection(dbConfig);
-    let rows;
-    try {
-      [rows] = await connection.execute(
-        `SELECT users.id, users.name, users.email, users.avatar 
-                 FROM class_enrollments 
-                 JOIN users ON class_enrollments.student_id = users.id 
-                 WHERE class_enrollments.class_id = ?`,
-        [id]
-      );
-    } finally {
-      await connection.end();
-    }
-    res.json(rows);
-  } catch (err) {
-    console.error('Get Class Students Error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+// Note: Class and Enrollment endpoints removed for simplification as requested.
 
 // Global Error Handler
 app.use((err, req, res, next) => {

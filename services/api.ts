@@ -88,39 +88,5 @@ export const api = {
         });
         if (!res.ok) throw new Error(await res.text());
         return res.json();
-    },
-
-    // Classes
-    getClasses: async (teacherId?: string): Promise<any[]> => {
-        const params = teacherId ? `?teacherId=${teacherId}` : '';
-        const res = await fetch(`${API_URL}/classes${params}`, { headers: getHeaders() });
-        if (!res.ok) throw new Error(await res.text());
-        return res.json();
-    },
-
-    createClass: async (cls: any) => {
-        const res = await fetch(`${API_URL}/classes`, {
-            method: 'POST',
-            headers: getHeaders(),
-            body: JSON.stringify(cls)
-        });
-        if (!res.ok) throw new Error(await res.text());
-        return res.json();
-    },
-
-    enrollStudents: async (classId: string, studentIds: string[]) => {
-        const res = await fetch(`${API_URL}/classes/${classId}/enroll`, {
-            method: 'POST',
-            headers: getHeaders(),
-            body: JSON.stringify({ studentIds })
-        });
-        if (!res.ok) throw new Error(await res.text());
-        return res.json();
-    },
-
-    getClassStudents: async (classId: string) => {
-        const res = await fetch(`${API_URL}/classes/${classId}/students`, { headers: getHeaders() });
-        if (!res.ok) throw new Error(await res.text());
-        return res.json();
     }
 };

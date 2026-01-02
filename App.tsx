@@ -8,7 +8,6 @@ import UploadModal from './components/UploadModal';
 import PreviewModal from './components/PreviewModal';
 import Analytics from './components/Analytics';
 import AdminPlatformManager from './components/AdminPlatformManager';
-import AdminClassManager from './components/AdminClassManager';
 import { api } from './services/api';
 import { persistenceService } from './services/persistenceService';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
@@ -50,16 +49,8 @@ const MainApp: React.FC = () => {
   const [selectedCert, setSelectedCert] = useState<Certificate | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
-  const [availableClasses, setAvailableClasses] = useState<{ id: string, name: string, teacherName: string }[]>([]);
-
-  const [regData, setRegData] = useState({ name: '', email: '', password: '', rollNumber: '', classId: '' });
+  const [regData, setRegData] = useState({ name: '', email: '', password: '' });
   const [loginData, setLoginData] = useState({ email: '', password: '' });
-
-  useEffect(() => {
-    if (isRegistering && regRole === UserRole.STUDENT) {
-      api.getClasses().then(cls => setAvailableClasses(cls)).catch(console.error);
-    }
-  }, [isRegistering, regRole]);
 
   useEffect(() => {
     if (user) {
@@ -246,18 +237,6 @@ const MainApp: React.FC = () => {
                   <input required placeholder="Full Name" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, name: e.target.value })} />
                   <input required type="email" placeholder="Email" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, email: e.target.value })} />
 
-                  {regRole === UserRole.STUDENT && (
-                    <>
-                      <input required placeholder="Roll Number" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, rollNumber: e.target.value })} />
-                      <select className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none text-slate-500" onChange={e => setRegData({ ...regData, classId: e.target.value })}>
-                        <option value="">Select Class (Optional)</option>
-                        {availableClasses.map(c => (
-                          <option key={c.id} value={c.id}>{c.name} - {c.teacherName}</option>
-                        ))}
-                      </select>
-                    </>
-                  )}
-
                   <input required type="password" placeholder="Password" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, password: e.target.value })} />
                   <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold">Register as {regRole}</button>
                 </form>
@@ -293,8 +272,7 @@ const MainApp: React.FC = () => {
           </div>
 
           {user.role === UserRole.ADMIN && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <AdminClassManager />
+            <div className="grid grid-cols-1 gap-8">
               <AdminPlatformManager />
             </div>
           )}
