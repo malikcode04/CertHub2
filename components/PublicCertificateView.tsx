@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import { ShieldCheck, Calendar, Award, User, XCircle, Loader2, Download } from 'lucide-react';
 import { Certificate, CertificateStatus } from '../types';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const PublicCertificateView = () => {
     const { id } = useParams<{ id: string }>();
