@@ -15,6 +15,7 @@ import PublicCertificateView from './components/PublicCertificateView';
 import BulkImport from './components/BulkImport';
 import AuditLogViewer from './components/AuditLogViewer';
 import AdminClassManager from './components/AdminClassManager';
+import AdminUserManager from './components/AdminUserManager';
 import {
   FileCheck,
   Clock,
@@ -316,6 +317,10 @@ const MainApp: React.FC = () => {
 
       {activeTab === 'audit-logs' && user.role === UserRole.ADMIN && (
         <AuditLogViewer />
+      )}
+
+      {activeTab === 'users' && user.role === UserRole.ADMIN && (
+        <AdminUserManager />
       )}
 
       {showUpload && <UploadModal onClose={() => setShowUpload(false)} onUpload={handleUpload} />}

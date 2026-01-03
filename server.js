@@ -464,6 +464,45 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
+// Users: Delete (Admin Only)
+app.delete('/api/users/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connection = await mysql.createConnection(dbConfig);
+    try {
+      // 1. Check if user exists
+      const [users] = await connection.execute('SELECT * FROM users WHERE id = ?', [id]);
+      if (users.length === 0) return res.status(404).json({ error: 'User not found' });
+
+      const userToDelete = users[0];
+      if (userToDelete.role === 'ADMIN') {
+        return res.status(403).json({ error: 'Admins cannot be deleted via this endpoint' });
+      }
+
+      // 2. Cleanup related data (Manual cascade if DB doesn't have foreign key cascades)
+      // Delete enrollments
+      await connection.execute('DELETE FROM class_enrollments WHERE student_id = ?', [id]);
+      // If teacher, clear teacher_id from classes or handle it
+      await connection.execute('UPDATE classes SET teacher_id = "deleted" WHERE teacher_id = ?', [id]);
+      // Delete certificates (or keep them but unlinked? Usually delete for GDPR/Cleanup)
+      await connection.execute('DELETE FROM certificates WHERE student_id = ?', [id]);
+
+      // 3. Delete the user
+      await connection.execute('DELETE FROM users WHERE id = ?', [id]);
+
+      // 4. Log the action
+      await logAction('ADMIN', 'SYSTEM', 'DELETE_USER', `Deleted user ${userToDelete.name} (${id})`);
+
+      res.json({ success: true, message: `User ${userToDelete.name} deleted successfully` });
+    } finally {
+      await connection.end();
+    }
+  } catch (err) {
+    console.error('Delete User Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Platforms: Get All & Add
 app.get('/api/platforms', async (req, res) => {
   try {

@@ -84,6 +84,15 @@ export const api = {
         return res.json();
     },
 
+    deleteUser: async (id: string) => {
+        const res = await fetch(`${API_URL}/users/${id}`, {
+            method: 'DELETE',
+            headers: getHeaders()
+        });
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+    },
+
     // Platforms
     getPlatforms: async (): Promise<any[]> => {
         const res = await fetch(`${API_URL}/platforms`, { headers: getHeaders() });
