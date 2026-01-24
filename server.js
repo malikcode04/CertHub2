@@ -416,20 +416,44 @@ app.post('/api/certificates', async (req, res) => {
     });
     const fileUrl = uploadRes.secure_url;
 
-    // 2. Insert to DB
-    const id = `c${Date.now()}`;
+    // 2. Fetch student name for the response (so frontend update has it)
     const connection = await mysql.createConnection(dbConfig);
+    let studentDetails = { name: 'Unknown', roll: '', class: '', section: '' };
     try {
+      const [uRows] = await connection.execute('SELECT name, roll_number, current_class, section FROM users WHERE id = ?', [studentId]);
+      if (uRows.length > 0) {
+        studentDetails = {
+          name: uRows[0].name,
+          roll: uRows[0].roll_number,
+          class: uRows[0].current_class,
+          section: uRows[0].section
+        };
+      }
+
+      // 3. Insert to DB
+      const id = `c${Date.now()}`;
       await connection.execute(
         'INSERT INTO certificates (id, student_id, title, platform, issued_date, file_url, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [id, studentId, title, platform, issuedDate, fileUrl, 'PENDING']
       );
+
+      // Return camelCase to match types.ts
+      res.json({
+        id,
+        studentId,
+        studentName: studentDetails.name,
+        studentRoll: studentDetails.roll,
+        studentClass: studentDetails.class,
+        studentSection: studentDetails.section,
+        title,
+        platform,
+        issuedDate,
+        fileUrl,
+        status: 'PENDING'
+      });
     } finally {
       await connection.end();
     }
-
-    // Return camelCase to match types.ts
-    res.json({ id, studentId, title, platform, issuedDate, fileUrl, status: 'PENDING' });
   } catch (err) {
     console.error('Upload Error:', err);
     res.status(500).json({ error: err.message });

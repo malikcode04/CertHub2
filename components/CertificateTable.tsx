@@ -79,7 +79,9 @@ const CertificateTable: React.FC<CertificateTableProps> = ({
                         onClick={() => onStudentClick?.(cert.studentId)}
                         className="cursor-pointer hover:opacity-75"
                       >
-                        <p className="font-bold text-slate-800 text-sm hover:text-blue-600 hover:underline">{cert.studentName || 'Unknown Student'}</p>
+                        <p className="font-bold text-slate-800 text-sm hover:text-blue-600 hover:underline">
+                          {cert.studentName && cert.studentName !== 'Missing Name' ? cert.studentName : (cert.studentId || 'Unknown Student')}
+                        </p>
                         <p className="text-xs text-slate-500">
                           {cert.studentRoll ? `Roll: ${cert.studentRoll}` : ''}
                           {cert.studentClass ? ` • ${cert.studentClass}` : ''}
