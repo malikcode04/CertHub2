@@ -465,7 +465,7 @@ app.get('/api/certificates', async (req, res) => {
   try {
     const { studentId, teacherId, title } = req.query;
     let query = `
-      SELECT c.*, u.name as student_name, u.roll_number as student_roll, u.current_class as student_class, u.section as student_section 
+      SELECT c.*, COALESCE(u.name, c.student_id, 'No-ID') as student_name, u.roll_number as student_roll, u.current_class as student_class, u.section as student_section 
       FROM certificates c 
       LEFT JOIN users u ON c.student_id = u.id
     `;

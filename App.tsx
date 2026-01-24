@@ -380,6 +380,7 @@ const MainApp: React.FC = () => {
         {/* Search Bar for Dashboards */}
         {(activeTab === 'dashboard' || activeTab === 'certificates') && (
           <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+            <div className="text-[10px] font-black bg-blue-600 text-white px-2 py-1 rounded-md">LIVE SEARCH</div>
             <Search className="text-slate-400" />
             <input
               value={searchQuery}
