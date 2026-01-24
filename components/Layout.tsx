@@ -27,6 +27,8 @@ interface LayoutProps {
   children: React.ReactNode;
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  searchQuery?: string;
+  onSearch?: (query: string) => void;
 }
 
 interface NavItemProps {
@@ -50,7 +52,7 @@ const NavItem: React.FC<NavItemProps> = ({ id, label, icon, active, onClick }) =
   </button>
 );
 
-const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, activeTab, setActiveTab }) => {
+const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, activeTab, setActiveTab, searchQuery, onSearch }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const SidebarContent = () => (
@@ -135,7 +137,18 @@ const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, activeTab, se
               <span className="text-xl font-black tracking-tight text-slate-900">CertHub</span>
             </div>
 
-
+            {user.role === UserRole.ADMIN && onSearch && (
+              <div className="hidden sm:flex items-center gap-3 text-slate-400 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100 focus-within:ring-2 focus-within:ring-blue-100 focus-within:bg-white transition-all ml-4 lg:ml-0">
+                <Search size={18} />
+                <input
+                  type="text"
+                  value={searchQuery || ''}
+                  onChange={(e) => onSearch(e.target.value)}
+                  placeholder="Global Search..."
+                  className="bg-transparent border-none focus:ring-0 text-slate-600 w-32 md:w-64 text-sm"
+                />
+              </div>
+            )}
           </div>
 
 

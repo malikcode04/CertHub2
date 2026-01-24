@@ -368,7 +368,14 @@ const MainApp: React.FC = () => {
   }
 
   return (
-    <Layout user={user} onLogout={handleLogout} activeTab={activeTab} setActiveTab={setActiveTab}>
+    <Layout
+      user={user}
+      onLogout={handleLogout}
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
+      searchQuery={searchQuery}
+      onSearch={setSearchQuery}
+    >
       <div className="space-y-6">
         {/* Search Bar for Dashboards REMOVED per user request */}
         {/* Only keeping search filter logic inside filter variables */}
