@@ -290,6 +290,44 @@ app.post('/api/register', async (req, res) => {
         [id, name, email, hashedPassword, role, department || null, currentClass || null, section || null, rollNumber || null, mobileNumber || null, avatar]
       );
 
+      // --- Auto-Sync Class Logic ---
+      if (currentClass) {
+        // 1. Check if class exists
+        const [classes] = await connection.execute('SELECT * FROM classes WHERE name = ?', [currentClass]);
+        let classId = null;
+
+        if (classes.length > 0) {
+          classId = classes[0].id;
+        } else {
+          // 2. Create class if it doesn't exist
+          // We need a teacher_id for the class. Pick the first Admin or Teacher available.
+          const [staff] = await connection.execute("SELECT id FROM users WHERE role IN ('ADMIN', 'TEACHER') LIMIT 1");
+          if (staff.length > 0) {
+            const teacherId = staff[0].id;
+            classId = `c${Date.now()}`;
+            await connection.execute(
+              'INSERT INTO classes (id, name, course_name, teacher_id) VALUES (?, ?, ?, ?)',
+              [classId, currentClass, currentClass, teacherId] // Using class name as course name for now
+            );
+          }
+        }
+
+        // 3. Enroll student if classId found
+        if (classId) {
+          const enrollId = `e${Date.now()}`;
+          // Check if already enrolled (shouldn't happen on register but good practice)
+          // Actually, ignore duplicates
+          try {
+            await connection.execute(
+              'INSERT INTO class_enrollments (id, class_id, student_id) VALUES (?, ?, ?)',
+              [enrollId, classId, id]
+            );
+          } catch (ignore) {
+            // Ignore duplicate entry errors
+          }
+        }
+      }
+
       const token = jwt.sign({ id, role }, JWT_SECRET, { expiresIn: '1d' });
 
       // Audit Log

@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import NotificationCenter from './NotificationCenter';
 import { User, UserRole } from '../types';
 import {
   LayoutDashboard,
@@ -142,11 +143,16 @@ const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, activeTab, se
             </div>
           </div>
 
+          import NotificationCenter from './NotificationCenter';
+
+          // ... (existing imports, but NotificationCenter must be at top, I will handle import separately or assume I can't put it in mid-file)
+          // Actually I need to add the import at the TOP. 
+          // I will split this into two edits if needed, or just insert the import manually if I can't see the top.
+          // Wait, I saw the top in view_file.
+          // I will replace the Bell icon section.
+
           <div className="flex items-center gap-3 sm:gap-6">
-            <div className="relative cursor-pointer text-slate-500 hover:text-blue-600 transition-colors p-2 hover:bg-slate-50 rounded-full">
-              <Bell size={20} />
-              <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 border-2 border-white rounded-full text-[10px] text-white flex items-center justify-center">2</span>
-            </div>
+            <NotificationCenter />
 
             <div className="hidden xs:block h-8 w-[1px] bg-slate-200"></div>
 

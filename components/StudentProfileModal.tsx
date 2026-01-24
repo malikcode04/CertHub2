@@ -1,6 +1,6 @@
 import React from 'react';
 import { User, Certificate, CertificateStatus } from '../types';
-import { X, Mail, Phone, Book, Hash, GraduationCap, Building2 } from 'lucide-react';
+import { X, Mail, Phone, Book, Hash, GraduationCap, Building2, UserCircle } from 'lucide-react';
 import CertificateTable from './CertificateTable';
 
 interface StudentProfileModalProps {
@@ -28,11 +28,9 @@ const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
                 {/* Header */}
                 <div className="p-8 border-b border-slate-100 flex justify-between items-start bg-slate-50 relative">
                     <div className="flex gap-6 items-center">
-                        <img
-                            src={student.avatar}
-                            alt={student.name}
-                            className="w-24 h-24 rounded-2xl bg-white shadow-sm border border-slate-100"
-                        />
+                        <div className="w-24 h-24 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center border border-slate-200">
+                            <UserCircle size={48} />
+                        </div>
                         <div>
                             <h2 className="text-3xl font-black text-slate-800">{student.name}</h2>
                             <div className="flex gap-2 mt-2">

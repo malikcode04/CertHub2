@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { User, UserRole } from '../types';
-import { Search, Trash2, User as UserIcon, Mail, Shield, Loader2 } from 'lucide-react';
+import { Search, Trash2, User as UserIcon, Mail, Shield, Loader2, UserCircle } from 'lucide-react';
 
 const AdminUserManager: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
@@ -83,7 +83,9 @@ const AdminUserManager: React.FC = () => {
                                     <tr key={user.id} className="group hover:bg-slate-50/50 transition-colors">
                                         <td className="px-8 py-5">
                                             <div className="flex items-center gap-4">
-                                                <img src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`} className="w-12 h-12 rounded-full border-2 border-slate-100 shadow-sm" alt="" />
+                                                <div className="w-12 h-12 rounded-full bg-slate-50 border-2 border-slate-100 shadow-sm flex items-center justify-center text-slate-400">
+                                                    <UserCircle size={24} />
+                                                </div>
                                                 <div>
                                                     <p className="font-bold text-slate-900 leading-tight">{user.name}</p>
                                                     <div className="flex items-center gap-1.5 text-slate-400 mt-1">
@@ -96,8 +98,8 @@ const AdminUserManager: React.FC = () => {
                                         <td className="px-8 py-5">
                                             <div className="flex items-center gap-2">
                                                 <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${user.role === UserRole.ADMIN ? 'bg-purple-100 text-purple-600' :
-                                                        user.role === UserRole.TEACHER ? 'bg-blue-100 text-blue-600' :
-                                                            'bg-slate-100 text-slate-600'
+                                                    user.role === UserRole.TEACHER ? 'bg-blue-100 text-blue-600' :
+                                                        'bg-slate-100 text-slate-600'
                                                     }`}>
                                                     {user.role}
                                                 </span>
