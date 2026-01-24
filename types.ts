@@ -20,12 +20,17 @@ export interface User {
   assignedTeacherId?: string;
   department?: string;
   currentClass?: string;
+  section?: string;
   mobileNumber?: string;
 }
 
 export interface Certificate {
   id: string;
   studentId: string;
+  studentName?: string;
+  studentRoll?: string;
+  studentClass?: string;
+  studentSection?: string;
   title: string;
   platform: string;
   issuedDate: string;

@@ -9,9 +9,21 @@ interface CertificateTableProps {
   onVerify?: (id: string, status: CertificateStatus, remarks?: string) => void;
   onPreview: (cert: Certificate) => void;
   onDownload: (cert: Certificate) => void;
+  onStudentClick?: (studentId: string) => void;
+  onCourseClick?: (courseTitle: string) => void;
+  hideStudentInfo?: boolean;
 }
 
-const CertificateTable: React.FC<CertificateTableProps> = ({ certificates, role, onVerify, onPreview, onDownload }) => {
+const CertificateTable: React.FC<CertificateTableProps> = ({
+  certificates,
+  role,
+  onVerify,
+  onPreview,
+  onDownload,
+  onStudentClick,
+  onCourseClick,
+  hideStudentInfo = false
+}) => {
   const getStatusBadge = (status: CertificateStatus) => {
     switch (status) {
       case CertificateStatus.VERIFIED:
@@ -35,12 +47,15 @@ const CertificateTable: React.FC<CertificateTableProps> = ({ certificates, role,
     }
   };
 
+  const showStudentColumn = !hideStudentInfo && role !== UserRole.STUDENT;
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50/50 border-b border-slate-200">
+              {showStudentColumn && <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Student</th>}
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Course Details</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Platform</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Issue Date</th>
@@ -51,20 +66,39 @@ const CertificateTable: React.FC<CertificateTableProps> = ({ certificates, role,
           <tbody className="divide-y divide-slate-100">
             {certificates.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                <td colSpan={showStudentColumn ? 6 : 5} className="px-6 py-12 text-center text-slate-400">
                   No certificates found.
                 </td>
               </tr>
             ) : (
               certificates.map((cert) => (
                 <tr key={cert.id} className="hover:bg-slate-50/80 transition-colors group">
+                  {showStudentColumn && (
+                    <td className="px-6 py-4">
+                      <div
+                        onClick={() => onStudentClick?.(cert.studentId)}
+                        className="cursor-pointer hover:opacity-75"
+                      >
+                        <p className="font-bold text-slate-800 text-sm hover:text-blue-600 hover:underline">{cert.studentName || 'Unknown Student'}</p>
+                        <p className="text-xs text-slate-500">
+                          {cert.studentRoll ? `Roll: ${cert.studentRoll}` : ''}
+                          {cert.studentClass ? ` • ${cert.studentClass}` : ''}
+                        </p>
+                      </div>
+                    </td>
+                  )}
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
                         <FileText size={20} />
                       </div>
                       <div>
-                        <p className="font-semibold text-slate-800 text-sm">{cert.title}</p>
+                        <p
+                          onClick={() => onCourseClick?.(cert.title)}
+                          className={`font-semibold text-slate-800 text-sm ${onCourseClick ? 'cursor-pointer hover:text-blue-600 hover:underline' : ''}`}
+                        >
+                          {cert.title}
+                        </p>
                         <p className="text-xs text-slate-400">ID: {cert.id.toUpperCase()}</p>
                       </div>
                     </div>

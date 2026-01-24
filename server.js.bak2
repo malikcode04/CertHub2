@@ -108,7 +108,6 @@ const initDB = async () => {
         role ENUM('STUDENT', 'TEACHER', 'ADMIN') NOT NULL DEFAULT 'STUDENT',
         department VARCHAR(100),
         current_class VARCHAR(100),
-        section VARCHAR(50),
         roll_number VARCHAR(50) UNIQUE,
         mobile_number VARCHAR(20),
         avatar VARCHAR(255),
@@ -261,7 +260,7 @@ app.get('/api/public/certificates/:id', async (req, res) => {
 // Auth: Register
 app.post('/api/register', async (req, res) => {
   try {
-    const { name, email, password, role, department, currentClass, section, rollNumber, mobileNumber } = req.body;
+    const { name, email, password, role, department, currentClass, rollNumber, mobileNumber } = req.body;
 
     // Check if user exists
     const connection = await mysql.createConnection(dbConfig);
@@ -286,8 +285,8 @@ app.post('/api/register', async (req, res) => {
 
       // Insert User
       await connection.execute(
-        'INSERT INTO users (id, name, email, password, role, department, current_class, section, roll_number, mobile_number, avatar) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [id, name, email, hashedPassword, role, department || null, currentClass || null, section || null, rollNumber || null, mobileNumber || null, avatar]
+        'INSERT INTO users (id, name, email, password, role, department, current_class, roll_number, mobile_number, avatar) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [id, name, email, hashedPassword, role, department || null, currentClass || null, rollNumber || null, mobileNumber || null, avatar]
       );
 
       const token = jwt.sign({ id, role }, JWT_SECRET, { expiresIn: '1d' });
@@ -401,23 +400,13 @@ app.post('/api/certificates', async (req, res) => {
 // Certificates: Get All (or filter by studentId)
 app.get('/api/certificates', async (req, res) => {
   try {
-    const { studentId, teacherId, title } = req.query;
+    const { studentId, teacherId } = req.query;
     let query = 'SELECT * FROM certificates';
     let params = [];
-    let conditions = [];
 
     if (studentId) {
-      conditions.push('student_id = ?');
+      query += ' WHERE student_id = ?';
       params.push(studentId);
-    }
-
-    if (title) {
-      conditions.push('title = ?');
-      params.push(title);
-    }
-
-    if (conditions.length > 0) {
-      query += ' WHERE ' + conditions.join(' AND ');
     }
 
     // Note: For teacherId, we would need to join with users/mappings, but keeping it simple for now
@@ -499,7 +488,7 @@ app.put('/api/certificates/:id', async (req, res) => {
 app.get('/api/users', async (req, res) => {
   try {
     const { role } = req.query;
-    let query = 'SELECT id, name, email, role, avatar, department, current_class as currentClass, section, roll_number as rollNumber, mobile_number as mobileNumber FROM users';
+    let query = 'SELECT id, name, email, role, avatar FROM users';
     let params = [];
 
     if (role) {

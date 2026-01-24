@@ -16,6 +16,7 @@ import BulkImport from './components/BulkImport';
 import AuditLogViewer from './components/AuditLogViewer';
 import AdminClassManager from './components/AdminClassManager';
 import AdminUserManager from './components/AdminUserManager';
+import StudentProfileModal from './components/StudentProfileModal';
 import {
   FileCheck,
   Clock,
@@ -26,7 +27,9 @@ import {
   ShieldCheck,
   Loader2,
   Mail,
-  Lock
+  Lock,
+  Search,
+  Filter
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -49,14 +52,18 @@ const MainApp: React.FC = () => {
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [showUpload, setShowUpload] = useState(false);
   const [selectedCert, setSelectedCert] = useState<Certificate | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
   const [regData, setRegData] = useState({
     name: '',
     email: '',
     password: '',
     department: '',
     currentClass: '',
+    section: '',
     rollNumber: '',
     mobileNumber: ''
   });
@@ -97,7 +104,6 @@ const MainApp: React.FC = () => {
     try {
       const data = await api.login(loginData);
       if (data.user) {
-        // Save token (handled in api.ts helper usually, but here manually for now)
         localStorage.setItem('token', data.token);
         persistenceService.setCurrentUser(data.user);
         setUser(data.user);
@@ -188,7 +194,6 @@ const MainApp: React.FC = () => {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Download failed:', err);
-      // Fallback
       const link = document.createElement('a');
       link.href = cert.fileUrl;
       link.target = '_blank';
@@ -207,13 +212,64 @@ const MainApp: React.FC = () => {
         remarks: remarks || '',
         verifiedBy: user?.id || 'anonymous'
       });
-      fetchData(); // Refetch to show updated status
+      fetchData();
     } catch (e) {
       alert("Verification update failed");
     } finally {
       setIsBusy(false);
     }
   };
+
+  const handleStudentClick = (studentId: string) => {
+    const student = allUsers.find(u => u.id === studentId);
+    if (student) {
+      setSelectedStudent(student);
+    } else {
+      const studentCerts = certificates.filter(c => c.studentId === studentId);
+      if (studentCerts.length > 0) {
+        const c = studentCerts[0];
+        setSelectedStudent({
+          id: c.studentId,
+          name: c.studentName || 'Unknown',
+          email: 'N/A',
+          role: UserRole.STUDENT,
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.studentName}`,
+          department: 'N/A',
+          currentClass: c.studentClass,
+          section: c.studentSection,
+          rollNumber: c.studentRoll,
+          mobileNumber: 'N/A'
+        });
+      }
+    }
+  };
+
+  const handleCourseClick = (title: string) => {
+    setSearchQuery(title);
+    if (activeTab !== 'certificates') {
+      setActiveTab('certificates');
+    }
+  };
+
+  const filteredCertificates = certificates.filter(c => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+
+    // Check certificate title
+    if (c.title.toLowerCase().includes(q)) return true;
+
+    // Check student details (if available on cert or via lookup)
+    const studentName = c.studentName?.toLowerCase();
+    if (studentName && studentName.includes(q)) return true;
+
+    const studentRoll = c.studentRoll?.toLowerCase();
+    if (studentRoll && studentRoll.includes(q)) return true;
+
+    const studentClass = c.studentClass?.toLowerCase();
+    if (studentClass && studentClass.includes(q)) return true;
+
+    return false;
+  });
 
   if (isInitialLoading) {
     return (
@@ -287,9 +343,12 @@ const MainApp: React.FC = () => {
                       <input required placeholder="Department (e.g. CS)" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, department: e.target.value })} />
                       <div className="grid grid-cols-2 gap-4">
                         <input required placeholder="Class (e.g. FY A)" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, currentClass: e.target.value })} />
-                        <input required placeholder="Roll No." className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, rollNumber: e.target.value })} />
+                        <input required placeholder="Section (e.g. A)" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, section: e.target.value })} />
                       </div>
-                      <input required placeholder="Mobile Number" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, mobileNumber: e.target.value })} />
+                      <div className="grid grid-cols-2 gap-4">
+                        <input required placeholder="Roll No." className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, rollNumber: e.target.value })} />
+                        <input required placeholder="Mobile Number" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, mobileNumber: e.target.value })} />
+                      </div>
                     </>
                   )}
 
@@ -306,76 +365,104 @@ const MainApp: React.FC = () => {
 
   return (
     <Layout user={user} onLogout={handleLogout} activeTab={activeTab} setActiveTab={setActiveTab}>
-      {activeTab === 'dashboard' && (
-        <div className="space-y-10">
-          <div className="flex justify-between items-center">
-            <h2 className="text-3xl font-black text-slate-900">Dashboard</h2>
-            {user.role === UserRole.STUDENT && (
-              <button
-                onClick={() => setShowUpload(true)}
-                className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg flex items-center gap-2 hover:bg-blue-700 transition-all"
-              >
-                <Plus size={20} /> Upload
-              </button>
+      <div className="space-y-6">
+        {/* Search Bar for Dashboards */}
+        {(activeTab === 'dashboard' || activeTab === 'certificates') && user.role !== UserRole.STUDENT && (
+          <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+            <Search className="text-slate-400" />
+            <input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search by Name, Roll No, Class, or Course..."
+              className="flex-1 outline-none text-slate-700 font-medium bg-transparent"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="text-xs font-bold text-slate-400 hover:text-red-500">CLEAR</button>
             )}
           </div>
+        )}
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <StatCard label="Total" value={certificates.length} icon={<FileCheck />} color="bg-blue-600" />
-            <StatCard label="Verified" value={certificates.filter(c => c.status === CertificateStatus.VERIFIED).length} icon={<UserCheck />} color="bg-emerald-500" />
-            <StatCard label="Pending" value={certificates.filter(c => c.status === CertificateStatus.PENDING).length} icon={<Clock />} color="bg-amber-500" />
-            <StatCard label="Rejected" value={certificates.filter(c => c.status === CertificateStatus.REJECTED).length} icon={<AlertTriangle />} color="bg-red-500" />
-          </div>
-
-          {user.role === UserRole.ADMIN && (
-            <div className="grid grid-cols-1 gap-8">
-              <AdminPlatformManager />
+        {activeTab === 'dashboard' && (
+          <div className="space-y-10">
+            <div className="flex justify-between items-center">
+              <h2 className="text-3xl font-black text-slate-900">Dashboard</h2>
+              {user.role === UserRole.STUDENT && (
+                <button
+                  onClick={() => setShowUpload(true)}
+                  className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg flex items-center gap-2 hover:bg-blue-700 transition-all"
+                >
+                  <Plus size={20} /> Upload
+                </button>
+              )}
             </div>
-          )}
 
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <StatCard label="Total" value={filteredCertificates.length} icon={<FileCheck />} color="bg-blue-600" />
+              <StatCard label="Verified" value={filteredCertificates.filter(c => c.status === CertificateStatus.VERIFIED).length} icon={<UserCheck />} color="bg-emerald-500" />
+              <StatCard label="Pending" value={filteredCertificates.filter(c => c.status === CertificateStatus.PENDING).length} icon={<Clock />} color="bg-amber-500" />
+              <StatCard label="Rejected" value={filteredCertificates.filter(c => c.status === CertificateStatus.REJECTED).length} icon={<AlertTriangle />} color="bg-red-500" />
+            </div>
+
+            {user.role === UserRole.ADMIN && (
+              <div className="grid grid-cols-1 gap-8">
+                <AdminPlatformManager />
+              </div>
+            )}
+
+            <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
+              <h3 className="text-xl font-black text-slate-800 mb-6">Recent Certificates</h3>
+              <CertificateTable
+                certificates={filteredCertificates.slice(0, 5)}
+                role={user.role}
+                onPreview={setSelectedCert}
+                onDownload={handleDownload}
+                onVerify={handleVerify}
+                onStudentClick={handleStudentClick}
+                onCourseClick={handleCourseClick}
+              />
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'certificates' && (
           <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
-            <h3 className="text-xl font-black text-slate-800 mb-6">Recent Certificates</h3>
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-2xl font-black text-slate-900">All Certificates</h2>
+              {searchQuery && (
+                <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">Filtered: {searchQuery}</span>
+              )}
+            </div>
+
             <CertificateTable
-              certificates={certificates.slice(0, 5)}
+              certificates={filteredCertificates}
               role={user.role}
               onPreview={setSelectedCert}
               onDownload={handleDownload}
               onVerify={handleVerify}
+              onStudentClick={handleStudentClick}
+              onCourseClick={handleCourseClick}
             />
           </div>
-        </div>
-      )}
+        )}
 
-      {activeTab === 'certificates' && (
-        <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
-          <h2 className="text-2xl font-black text-slate-900 mb-8">All Certificates</h2>
-          <CertificateTable
-            certificates={certificates}
-            role={user.role}
-            onPreview={setSelectedCert}
-            onDownload={handleDownload}
-            onVerify={handleVerify}
-          />
-        </div>
-      )}
+        {activeTab === 'analytics' && <Analytics certificates={filteredCertificates} />}
 
-      {activeTab === 'analytics' && <Analytics certificates={certificates} />}
+        {activeTab === 'classes' && user.role === UserRole.ADMIN && (
+          <AdminClassManager />
+        )}
 
-      {activeTab === 'classes' && user.role === UserRole.ADMIN && (
-        <AdminClassManager />
-      )}
+        {activeTab === 'bulk-import' && user.role === UserRole.ADMIN && (
+          <BulkImport onSuccess={fetchData} />
+        )}
 
-      {activeTab === 'bulk-import' && user.role === UserRole.ADMIN && (
-        <BulkImport onSuccess={fetchData} />
-      )}
+        {activeTab === 'audit-logs' && user.role === UserRole.ADMIN && (
+          <AuditLogViewer />
+        )}
 
-      {activeTab === 'audit-logs' && user.role === UserRole.ADMIN && (
-        <AuditLogViewer />
-      )}
-
-      {activeTab === 'users' && user.role === UserRole.ADMIN && (
-        <AdminUserManager />
-      )}
+        {activeTab === 'users' && user.role === UserRole.ADMIN && (
+          <AdminUserManager />
+        )}
+      </div>
 
       {showUpload && <UploadModal onClose={() => setShowUpload(false)} onUpload={handleUpload} />}
       {selectedCert && (
@@ -384,6 +471,18 @@ const MainApp: React.FC = () => {
           onClose={() => setSelectedCert(null)}
           showAIAnalysis={true}
           onDownload={() => handleDownload(selectedCert)}
+        />
+      )}
+
+      {selectedStudent && (
+        <StudentProfileModal
+          student={selectedStudent}
+          certificates={certificates.filter(c => c.studentId === selectedStudent.id)}
+          onClose={() => setSelectedStudent(null)}
+          onPreview={setSelectedCert}
+          onDownload={handleDownload}
+          onVerify={handleVerify}
+          role={user.role}
         />
       )}
 
