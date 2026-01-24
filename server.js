@@ -106,6 +106,10 @@ const initDB = async () => {
         email VARCHAR(255) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
         role ENUM('STUDENT', 'TEACHER', 'ADMIN') NOT NULL DEFAULT 'STUDENT',
+        department VARCHAR(100),
+        current_class VARCHAR(100),
+        roll_number VARCHAR(50) UNIQUE,
+        mobile_number VARCHAR(20),
         avatar VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -256,7 +260,7 @@ app.get('/api/public/certificates/:id', async (req, res) => {
 // Auth: Register
 app.post('/api/register', async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, department, currentClass, rollNumber, mobileNumber } = req.body;
 
     // Check if user exists
     const connection = await mysql.createConnection(dbConfig);
@@ -267,14 +271,22 @@ app.post('/api/register', async (req, res) => {
         return res.status(400).json({ error: 'User already exists' });
       }
 
+      // Check rollback number uniqueness if provided
+      if (rollNumber) {
+        const [existingRoll] = await connection.execute('SELECT * FROM users WHERE roll_number = ?', [rollNumber]);
+        if (existingRoll.length > 0) {
+          return res.status(400).json({ error: 'Roll Number already exists' });
+        }
+      }
+
       const hashedPassword = await bcrypt.hash(password, 10);
       const avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`;
       const id = `u${Date.now()}`;
 
-      // Insert User (Strict: Name, Email, Password, Role, Avatar only)
+      // Insert User
       await connection.execute(
-        'INSERT INTO users (id, name, email, password, role, avatar) VALUES (?, ?, ?, ?, ?, ?)',
-        [id, name, email, hashedPassword, role, avatar]
+        'INSERT INTO users (id, name, email, password, role, department, current_class, roll_number, mobile_number, avatar) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [id, name, email, hashedPassword, role, department || null, currentClass || null, rollNumber || null, mobileNumber || null, avatar]
       );
 
       const token = jwt.sign({ id, role }, JWT_SECRET, { expiresIn: '1d' });
@@ -315,6 +327,41 @@ app.post('/api/login', async (req, res) => {
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar } });
   } catch (err) {
     console.error('Login Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Auth: Forgot Password
+app.post('/api/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    const connection = await mysql.createConnection(dbConfig);
+    try {
+      const [users] = await connection.execute('SELECT * FROM users WHERE email = ?', [email]);
+
+      if (users.length === 0) {
+        // Security: Don't reveal if user exists
+        return res.json({ success: true, message: 'If your email is registered, you will receive a reset link.' });
+      }
+
+      const user = users[0];
+      // Generate a temporary reset token (You might want to store this in DB in a real app)
+      const resetToken = jwt.sign({ id: user.id, type: 'reset' }, JWT_SECRET, { expiresIn: '15m' });
+
+      // Send Email
+      const resetLink = `${req.protocol}://${req.get('host')}/reset-password?token=${resetToken}`; // In production, use frontend URL
+      const subject = 'Password Reset Request';
+      const text = `Hi ${user.name},\n\nYou requested a password reset. Click here to reset: ${resetLink}\n\nLink expires in 15 minutes.`;
+      const html = `<p>Hi ${user.name},</p><p>You requested a password reset.</p><p><a href="${resetLink}">Click here to reset password</a></p><p>Link expires in 15 minutes.</p>`;
+
+      await sendEmail(email, subject, text, html);
+
+      res.json({ success: true, message: 'If your email is registered, you will receive a reset link.' });
+    } finally {
+      await connection.end();
+    }
+  } catch (err) {
+    console.error('Forgot Password Error:', err);
     res.status(500).json({ error: err.message });
   }
 });

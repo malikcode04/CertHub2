@@ -51,8 +51,18 @@ const MainApp: React.FC = () => {
   const [selectedCert, setSelectedCert] = useState<Certificate | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
-  const [regData, setRegData] = useState({ name: '', email: '', password: '' });
+  const [regData, setRegData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    department: '',
+    currentClass: '',
+    rollNumber: '',
+    mobileNumber: ''
+  });
   const [loginData, setLoginData] = useState({ email: '', password: '' });
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -96,6 +106,20 @@ const MainApp: React.FC = () => {
       }
     } catch (e: any) {
       alert(e.message || "Connection to backend failed.");
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsBusy(true);
+    try {
+      const res = await api.forgotPassword(forgotEmail);
+      alert(res.message);
+      setShowForgot(false);
+    } catch (e: any) {
+      alert("Error requesting password reset");
     } finally {
       setIsBusy(false);
     }
@@ -204,26 +228,45 @@ const MainApp: React.FC = () => {
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-10 border border-slate-100">
           {!isRegistering ? (
-            <div className="text-center">
-              <ShieldCheck size={64} className="text-blue-600 mx-auto mb-6" />
-              <h1 className="text-3xl font-black mb-2">CertHub</h1>
-              <p className="text-slate-500 mb-8">Login to your centralized hub</p>
+            !showForgot ? (
+              <div className="text-center">
+                <ShieldCheck size={64} className="text-blue-600 mx-auto mb-6" />
+                <h1 className="text-3xl font-black mb-2">CertHub</h1>
+                <p className="text-slate-500 mb-8">Login to your centralized hub</p>
 
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="relative">
-                  <Mail className="absolute left-4 top-4 text-slate-400" size={20} />
-                  <input required type="email" placeholder="Email" className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setLoginData({ ...loginData, email: e.target.value })} />
-                </div>
-                <div className="relative">
-                  <Lock className="absolute left-4 top-4 text-slate-400" size={20} />
-                  <input required type="password" placeholder="Password" className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setLoginData({ ...loginData, password: e.target.value })} />
-                </div>
-                <button type="submit" disabled={isBusy} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold hover:bg-blue-700 transition-all">
-                  {isBusy ? <Loader2 className="animate-spin mx-auto" /> : 'Sign In'}
-                </button>
-              </form>
-              <button onClick={() => setIsRegistering(true)} className="mt-6 text-sm text-blue-600 font-bold hover:underline">Create an account</button>
-            </div>
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-4 text-slate-400" size={20} />
+                    <input required type="email" placeholder="Email" className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setLoginData({ ...loginData, email: e.target.value })} />
+                  </div>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-4 text-slate-400" size={20} />
+                    <input required type="password" placeholder="Password" className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setLoginData({ ...loginData, password: e.target.value })} />
+                  </div>
+                  <button type="button" onClick={() => setShowForgot(true)} className="text-sm text-blue-600 font-bold hover:underline mb-2 block text-right">Forgot Password?</button>
+                  <button type="submit" disabled={isBusy} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold hover:bg-blue-700 transition-all">
+                    {isBusy ? <Loader2 className="animate-spin mx-auto" /> : 'Sign In'}
+                  </button>
+                </form>
+                <button onClick={() => setIsRegistering(true)} className="mt-6 text-sm text-blue-600 font-bold hover:underline">Create an account</button>
+              </div>
+            ) : (
+              <div className="text-center">
+                <ShieldCheck size={64} className="text-blue-600 mx-auto mb-6" />
+                <h2 className="text-2xl font-black mb-4">Reset Password</h2>
+                <p className="text-slate-500 mb-6">Enter your email to receive a reset link.</p>
+                <form onSubmit={handleForgotSubmit} className="space-y-4">
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-4 text-slate-400" size={20} />
+                    <input required type="email" placeholder="Email" className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setForgotEmail(e.target.value)} />
+                  </div>
+                  <button type="submit" disabled={isBusy} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold hover:bg-blue-700 transition-all">
+                    {isBusy ? <Loader2 className="animate-spin mx-auto" /> : 'Send Reset Link'}
+                  </button>
+                </form>
+                <button onClick={() => setShowForgot(false)} className="mt-6 flex items-center justify-center gap-2 text-slate-400 text-sm font-bold mx-auto"><ArrowLeft size={16} /> Back to Login</button>
+              </div>
+            )
           ) : (
             <div>
               <button onClick={() => setIsRegistering(false)} className="mb-6 flex items-center gap-2 text-slate-400 text-sm font-bold"><ArrowLeft size={16} /> Back</button>
@@ -238,6 +281,17 @@ const MainApp: React.FC = () => {
                 <form onSubmit={handleRegisterSubmit} className="space-y-4">
                   <input required placeholder="Full Name" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, name: e.target.value })} />
                   <input required type="email" placeholder="Email" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, email: e.target.value })} />
+
+                  {regRole === UserRole.STUDENT && (
+                    <>
+                      <input required placeholder="Department (e.g. CS)" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, department: e.target.value })} />
+                      <div className="grid grid-cols-2 gap-4">
+                        <input required placeholder="Class (e.g. FY A)" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, currentClass: e.target.value })} />
+                        <input required placeholder="Roll No." className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, rollNumber: e.target.value })} />
+                      </div>
+                      <input required placeholder="Mobile Number" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, mobileNumber: e.target.value })} />
+                    </>
+                  )}
 
                   <input required type="password" placeholder="Password" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 outline-none" onChange={e => setRegData({ ...regData, password: e.target.value })} />
                   <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold">Register as {regRole}</button>

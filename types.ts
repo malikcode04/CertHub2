@@ -17,9 +17,10 @@ export interface User {
   email: string;
   role: UserRole;
   avatar: string;
-  rollNumber?: string;
-  classId?: string; // Optional for registration
   assignedTeacherId?: string;
+  department?: string;
+  currentClass?: string;
+  mobileNumber?: string;
 }
 
 export interface Certificate {

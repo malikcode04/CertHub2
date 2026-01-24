@@ -44,6 +44,16 @@ export const api = {
         return res.json();
     },
 
+    forgotPassword: async (email: string) => {
+        const res = await fetch(`${API_URL}/forgot-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+    },
+
     // Certificates
     getCertificates: async (filters?: { studentId?: string; teacherId?: string }): Promise<Certificate[]> => {
         const params = new URLSearchParams(filters as any).toString();
