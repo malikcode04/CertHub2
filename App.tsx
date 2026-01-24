@@ -377,8 +377,21 @@ const MainApp: React.FC = () => {
       onSearch={setSearchQuery}
     >
       <div className="space-y-6">
-        {/* Search Bar for Dashboards REMOVED per user request */}
-        {/* Only keeping search filter logic inside filter variables */}
+        {/* Search Bar for Dashboards */}
+        {(activeTab === 'dashboard' || activeTab === 'certificates') && user.role !== UserRole.STUDENT && (
+          <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+            <Search className="text-slate-400" />
+            <input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search by Name, Roll No, Class, or Course..."
+              className="flex-1 outline-none text-slate-700 font-medium bg-transparent"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="text-xs font-bold text-slate-400 hover:text-red-500">CLEAR</button>
+            )}
+          </div>
+        )}
 
         {activeTab === 'dashboard' && (
           <div className="space-y-10">

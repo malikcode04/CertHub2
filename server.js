@@ -440,17 +440,21 @@ app.post('/api/certificates', async (req, res) => {
 app.get('/api/certificates', async (req, res) => {
   try {
     const { studentId, teacherId, title } = req.query;
-    let query = 'SELECT * FROM certificates';
+    let query = `
+      SELECT c.*, u.name as student_name, u.roll_number as student_roll, u.current_class as student_class, u.section as student_section 
+      FROM certificates c 
+      JOIN users u ON c.student_id = u.id
+    `;
     let params = [];
     let conditions = [];
 
     if (studentId) {
-      conditions.push('student_id = ?');
+      conditions.push('c.student_id = ?');
       params.push(studentId);
     }
 
     if (title) {
-      conditions.push('title = ?');
+      conditions.push('c.title = ?');
       params.push(title);
     }
 
@@ -458,7 +462,7 @@ app.get('/api/certificates', async (req, res) => {
       query += ' WHERE ' + conditions.join(' AND ');
     }
 
-    query += ' ORDER BY issued_date DESC, created_at DESC';
+    query += ' ORDER BY c.issued_date DESC, c.created_at DESC';
 
     // Note: For teacherId, we would need to join with users/mappings, but keeping it simple for now
     // Assuming teacher wants to see all checks or logic handles it in frontend filtering for this MVP
@@ -475,6 +479,10 @@ app.get('/api/certificates', async (req, res) => {
     const certificates = rows.map(row => ({
       id: row.id,
       studentId: row.student_id,
+      studentName: row.student_name,     // [NEW]
+      studentRoll: row.student_roll,     // [NEW]
+      studentClass: row.student_class,   // [NEW]
+      studentSection: row.student_section, // [NEW]
       title: row.title,
       platform: row.platform,
       issuedDate: row.issued_date,
