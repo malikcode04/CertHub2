@@ -443,7 +443,7 @@ app.get('/api/certificates', async (req, res) => {
     let query = `
       SELECT c.*, u.name as student_name, u.roll_number as student_roll, u.current_class as student_class, u.section as student_section 
       FROM certificates c 
-      JOIN users u ON c.student_id = u.id
+      LEFT JOIN users u ON c.student_id = u.id
     `;
     let params = [];
     let conditions = [];
@@ -479,17 +479,17 @@ app.get('/api/certificates', async (req, res) => {
     const certificates = rows.map(row => ({
       id: row.id,
       studentId: row.student_id,
-      studentName: row.student_name,     // [NEW]
-      studentRoll: row.student_roll,     // [NEW]
-      studentClass: row.student_class,   // [NEW]
-      studentSection: row.student_section, // [NEW]
+      studentName: row.student_name || 'Missing Name',
+      studentRoll: row.student_roll || 'N/A',
+      studentClass: row.student_class || 'N/A',
+      studentSection: row.student_section || '',
       title: row.title,
       platform: row.platform,
       issuedDate: row.issued_date,
       fileUrl: row.file_url,
       status: row.status,
-      remarks: row.remarks,
-      verifiedBy: row.verified_by,
+      remarks: row.remarks || '',
+      verifiedBy: row.verified_by || 'Not Verified',
       verifiedAt: row.verified_at
     }));
 

@@ -378,7 +378,7 @@ const MainApp: React.FC = () => {
     >
       <div className="space-y-6">
         {/* Search Bar for Dashboards */}
-        {(activeTab === 'dashboard' || activeTab === 'certificates') && user.role !== UserRole.STUDENT && (
+        {(activeTab === 'dashboard' || activeTab === 'certificates') && (
           <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
             <Search className="text-slate-400" />
             <input

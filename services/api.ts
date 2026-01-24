@@ -14,21 +14,13 @@ const getHeaders = () => {
 export const api = {
     // Auth
     register: async (userData: any) => {
-        // --- FRONTEND SHIELD: Strip legacy fields ---
-        const cleanData = {
-            name: userData.name,
-            email: userData.email,
-            password: userData.password,
-            role: userData.role
-        };
-
         // --- API SHIELD: Log payload for verification ---
-        console.log("🚀 [CertHub API] Registering with payload:", cleanData);
+        console.log("🚀 [CertHub API] Registering with payload:", userData);
 
         const res = await fetch(`${API_URL}/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(cleanData)
+            body: JSON.stringify(userData)
         });
         if (!res.ok) throw new Error(await res.text());
         return res.json();
