@@ -17,7 +17,8 @@ import {
   UploadCloud,
   History,
   BarChart3,
-  Award
+  Award,
+  Layers
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -71,6 +72,7 @@ const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, activeTab, se
             <div className="pt-4 pb-2 px-4">
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Administration</p>
             </div>
+            <NavItem id="platforms" label="Platform Management" icon={<Layers size={20} />} active={activeTab === 'platforms'} onClick={() => { setActiveTab('platforms'); setIsMobileMenuOpen(false); }} />
             <NavItem id="classes" label="Class Management" icon={<Users size={20} />} active={activeTab === 'classes'} onClick={() => { setActiveTab('classes'); setIsMobileMenuOpen(false); }} />
             <NavItem id="users" label="User Management" icon={<Users size={20} />} active={activeTab === 'users'} onClick={() => { setActiveTab('users'); setIsMobileMenuOpen(false); }} />
             <NavItem id="bulk-import" label="Bulk Import" icon={<UploadCloud size={20} />} active={activeTab === 'bulk-import'} onClick={() => { setActiveTab('bulk-import'); setIsMobileMenuOpen(false); }} />
@@ -133,14 +135,7 @@ const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, activeTab, se
               <span className="text-xl font-black tracking-tight text-slate-900">CertHub</span>
             </div>
 
-            <div className="hidden sm:flex items-center gap-3 text-slate-400 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100 focus-within:ring-2 focus-within:ring-blue-100 focus-within:bg-white transition-all ml-4 lg:ml-0">
-              <Search size={18} />
-              <input
-                type="text"
-                placeholder="Search..."
-                className="bg-transparent border-none focus:ring-0 text-slate-600 w-32 md:w-64 text-sm"
-              />
-            </div>
+
           </div>
 
 

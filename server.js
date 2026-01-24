@@ -458,6 +458,8 @@ app.get('/api/certificates', async (req, res) => {
       query += ' WHERE ' + conditions.join(' AND ');
     }
 
+    query += ' ORDER BY issued_date DESC, created_at DESC';
+
     // Note: For teacherId, we would need to join with users/mappings, but keeping it simple for now
     // Assuming teacher wants to see all checks or logic handles it in frontend filtering for this MVP
 

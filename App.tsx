@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { User, UserRole, Certificate, CertificateStatus } from './types';
 import Layout from './components/Layout';
@@ -56,6 +55,7 @@ const MainApp: React.FC = () => {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | CertificateStatus>('ALL');
 
   const [regData, setRegData] = useState({
     name: '',
@@ -252,6 +252,10 @@ const MainApp: React.FC = () => {
   };
 
   const filteredCertificates = certificates.filter(c => {
+    // 1. Status Filter
+    if (statusFilter !== 'ALL' && c.status !== statusFilter) return false;
+
+    // 2. Search Query
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
 
@@ -366,21 +370,8 @@ const MainApp: React.FC = () => {
   return (
     <Layout user={user} onLogout={handleLogout} activeTab={activeTab} setActiveTab={setActiveTab}>
       <div className="space-y-6">
-        {/* Search Bar for Dashboards */}
-        {(activeTab === 'dashboard' || activeTab === 'certificates') && user.role !== UserRole.STUDENT && (
-          <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-            <Search className="text-slate-400" />
-            <input
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search by Name, Roll No, Class, or Course..."
-              className="flex-1 outline-none text-slate-700 font-medium bg-transparent"
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="text-xs font-bold text-slate-400 hover:text-red-500">CLEAR</button>
-            )}
-          </div>
-        )}
+        {/* Search Bar for Dashboards REMOVED per user request */}
+        {/* Only keeping search filter logic inside filter variables */}
 
         {activeTab === 'dashboard' && (
           <div className="space-y-10">
@@ -397,17 +388,41 @@ const MainApp: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <StatCard label="Total" value={filteredCertificates.length} icon={<FileCheck />} color="bg-blue-600" />
-              <StatCard label="Verified" value={filteredCertificates.filter(c => c.status === CertificateStatus.VERIFIED).length} icon={<UserCheck />} color="bg-emerald-500" />
-              <StatCard label="Pending" value={filteredCertificates.filter(c => c.status === CertificateStatus.PENDING).length} icon={<Clock />} color="bg-amber-500" />
-              <StatCard label="Rejected" value={filteredCertificates.filter(c => c.status === CertificateStatus.REJECTED).length} icon={<AlertTriangle />} color="bg-red-500" />
+              <StatCard
+                label="Total"
+                value={certificates.length}
+                icon={<FileCheck />}
+                color="bg-blue-600"
+                onClick={() => setStatusFilter('ALL')}
+                isActive={statusFilter === 'ALL'}
+              />
+              <StatCard
+                label="Verified"
+                value={certificates.filter(c => c.status === CertificateStatus.VERIFIED).length}
+                icon={<UserCheck />}
+                color="bg-emerald-500"
+                onClick={() => setStatusFilter(CertificateStatus.VERIFIED)}
+                isActive={statusFilter === CertificateStatus.VERIFIED}
+              />
+              <StatCard
+                label="Pending"
+                value={certificates.filter(c => c.status === CertificateStatus.PENDING).length}
+                icon={<Clock />}
+                color="bg-amber-500"
+                onClick={() => setStatusFilter(CertificateStatus.PENDING)}
+                isActive={statusFilter === CertificateStatus.PENDING}
+              />
+              <StatCard
+                label="Rejected"
+                value={certificates.filter(c => c.status === CertificateStatus.REJECTED).length}
+                icon={<AlertTriangle />}
+                color="bg-red-500"
+                onClick={() => setStatusFilter(CertificateStatus.REJECTED)}
+                isActive={statusFilter === CertificateStatus.REJECTED}
+              />
             </div>
 
-            {user.role === UserRole.ADMIN && (
-              <div className="grid grid-cols-1 gap-8">
-                <AdminPlatformManager />
-              </div>
-            )}
+            {/* AdminPlatformManager moved to 'platforms' tab */}
 
             <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
               <h3 className="text-xl font-black text-slate-800 mb-6">Recent Certificates</h3>
@@ -428,9 +443,16 @@ const MainApp: React.FC = () => {
           <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
             <div className="flex justify-between items-center mb-8">
               <h2 className="text-2xl font-black text-slate-900">All Certificates</h2>
-              {searchQuery && (
-                <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">Filtered: {searchQuery}</span>
-              )}
+              {/* Search query might be set by Course Click, but Navbar search is gone. */}
+              {/* We can re-introduce a local search if needed, but for now just showing active filters */}
+              <div className="flex gap-2">
+                {searchQuery && (
+                  <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">Search: {searchQuery}</span>
+                )}
+                {statusFilter !== 'ALL' && (
+                  <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold">Status: {statusFilter}</span>
+                )}
+              </div>
             </div>
 
             <CertificateTable
@@ -446,6 +468,12 @@ const MainApp: React.FC = () => {
         )}
 
         {activeTab === 'analytics' && <Analytics certificates={filteredCertificates} />}
+
+        {activeTab === 'platforms' && user.role === UserRole.ADMIN && (
+          <div className="grid grid-cols-1 gap-8">
+            <AdminPlatformManager />
+          </div>
+        )}
 
         {activeTab === 'classes' && user.role === UserRole.ADMIN && (
           <AdminClassManager />
