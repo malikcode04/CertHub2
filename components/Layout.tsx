@@ -143,13 +143,6 @@ const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, activeTab, se
             </div>
           </div>
 
-          import NotificationCenter from './NotificationCenter';
-
-          // ... (existing imports, but NotificationCenter must be at top, I will handle import separately or assume I can't put it in mid-file)
-          // Actually I need to add the import at the TOP. 
-          // I will split this into two edits if needed, or just insert the import manually if I can't see the top.
-          // Wait, I saw the top in view_file.
-          // I will replace the Bell icon section.
 
           <div className="flex items-center gap-3 sm:gap-6">
             <NotificationCenter />
