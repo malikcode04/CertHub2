@@ -84,7 +84,16 @@ const MainApp: React.FC = () => {
       // Fetch certificates: Students only see theirs, Admin/Teachers see all (for now)
       const params = user?.role === UserRole.STUDENT ? { studentId: user.id } : {};
       const certs = await api.getCertificates(params);
-      setCertificates(Array.isArray(certs) ? certs : []);
+
+      // Fix: If student is logged in, ensure their name is correctly applied even if join failed
+      const enrichedCerts = certs.map(c => {
+        if (user?.role === UserRole.STUDENT && c.studentId === user.id) {
+          return { ...c, studentName: user.name };
+        }
+        return c;
+      });
+
+      setCertificates(Array.isArray(enrichedCerts) ? enrichedCerts : []);
 
       // If admin, fetch all users
       if (user?.role === UserRole.ADMIN) {
@@ -380,7 +389,6 @@ const MainApp: React.FC = () => {
         {/* Search Bar for Dashboards */}
         {(activeTab === 'dashboard' || activeTab === 'certificates') && (
           <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-            <div className="text-[10px] font-black bg-blue-600 text-white px-2 py-1 rounded-md">LIVE SEARCH</div>
             <Search className="text-slate-400" />
             <input
               value={searchQuery}
