@@ -460,12 +460,15 @@ app.post('/api/certificates', async (req, res) => {
   }
 });
 
-// Certificates: Get All (or filter by studentId)
 app.get('/api/certificates', async (req, res) => {
   try {
     const { studentId, teacherId, title } = req.query;
     let query = `
-      SELECT c.*, COALESCE(u.name, c.student_id, 'No-ID') as student_name, u.roll_number as student_roll, u.current_class as student_class, u.section as student_section 
+      SELECT c.*, 
+      COALESCE(NULLIF(u.name, ''), CONCAT('Student ', c.student_id)) as student_name, 
+      COALESCE(NULLIF(u.roll_number, ''), 'N/A') as student_roll, 
+      COALESCE(NULLIF(u.current_class, ''), 'N/A') as student_class, 
+      COALESCE(NULLIF(u.section, ''), '') as student_section 
       FROM certificates c 
       LEFT JOIN users u ON c.student_id = u.id
     `;
@@ -540,6 +543,7 @@ app.delete('/api/certificates/:id', async (req, res) => {
         return res.status(403).json({ error: 'Unauthorized to delete this certificate' });
       }
 
+      console.log(`🗑️ Deleting certificate ${id} requested by user ${userId} (role: ${role})`);
       await connection.execute('DELETE FROM certificates WHERE id = ?', [id]);
       await logAction(userId || 'unknown', 'SYSTEM', 'DELETE_CERT', `Deleted certificate ${id} (${cert.title})`);
 

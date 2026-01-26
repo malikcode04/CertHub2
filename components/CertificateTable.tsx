@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Certificate, CertificateStatus, UserRole } from '../types';
-import { ExternalLink, CheckCircle, XCircle, Clock, MoreVertical, Eye, Download } from 'lucide-react';
+import { ExternalLink, CheckCircle, XCircle, Clock, MoreVertical, Eye, Download, AlertTriangle } from 'lucide-react';
 
 interface CertificateTableProps {
   certificates: Certificate[];
@@ -81,12 +81,17 @@ const CertificateTable: React.FC<CertificateTableProps> = ({
                         onClick={() => onStudentClick?.(cert.studentId)}
                         className="cursor-pointer hover:opacity-75"
                       >
-                        <p className="font-bold text-slate-800 text-sm hover:text-blue-600 hover:underline">
-                          {cert.studentName && !cert.studentName.startsWith('u') ? `${cert.studentName} (${cert.studentRoll || 'No Roll'})` : 'Unknown Student'}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          {(!cert.studentName || cert.studentName.includes(cert.studentId)) && (
+                            <AlertTriangle size={14} className="text-amber-500" title="Profile Incomplete" />
+                          )}
+                          <p className="font-bold text-slate-800 text-sm hover:text-blue-600 hover:underline">
+                            {cert.studentName || `ID: ${cert.studentId}`}
+                          </p>
+                        </div>
                         <p className="text-xs text-slate-500">
-                          {cert.studentRoll ? `Roll: ${cert.studentRoll}` : ''}
-                          {cert.studentClass ? ` • ${cert.studentClass}` : ''}
+                          {cert.studentRoll && cert.studentRoll !== 'N/A' ? `Roll: ${cert.studentRoll}` : ''}
+                          {cert.studentClass && cert.studentClass !== 'N/A' ? ` • ${cert.studentClass}` : ''}
                         </p>
                       </div>
                     </td>
