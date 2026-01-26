@@ -11,6 +11,7 @@ interface CertificateTableProps {
   onDownload: (cert: Certificate) => void;
   onStudentClick?: (studentId: string) => void;
   onCourseClick?: (courseTitle: string) => void;
+  onDelete?: (id: string) => void;
   hideStudentInfo?: boolean;
 }
 
@@ -22,6 +23,7 @@ const CertificateTable: React.FC<CertificateTableProps> = ({
   onDownload,
   onStudentClick,
   onCourseClick,
+  onDelete,
   hideStudentInfo = false
 }) => {
   const getStatusBadge = (status: CertificateStatus) => {
@@ -80,7 +82,7 @@ const CertificateTable: React.FC<CertificateTableProps> = ({
                         className="cursor-pointer hover:opacity-75"
                       >
                         <p className="font-bold text-slate-800 text-sm hover:text-blue-600 hover:underline">
-                          {cert.studentName && !cert.studentName.startsWith('u') ? cert.studentName : 'Unknown Student'}
+                          {cert.studentName && !cert.studentName.startsWith('u') ? `${cert.studentName} (${cert.studentRoll || 'No Roll'})` : 'Unknown Student'}
                         </p>
                         <p className="text-xs text-slate-500">
                           {cert.studentRoll ? `Roll: ${cert.studentRoll}` : ''}
@@ -148,6 +150,20 @@ const CertificateTable: React.FC<CertificateTableProps> = ({
                             <XCircle size={18} />
                           </button>
                         </>
+                      )}
+
+                      {role === UserRole.STUDENT && (
+                        <button
+                          onClick={() => {
+                            if (window.confirm("Are you sure you want to delete this certificate?")) {
+                              onDelete?.(cert.id);
+                            }
+                          }}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                          title="Delete Certificate"
+                        >
+                          <XCircle size={18} />
+                        </button>
                       )}
                     </div>
                   </td>

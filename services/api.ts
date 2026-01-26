@@ -76,6 +76,15 @@ export const api = {
         return res.json();
     },
 
+    deleteCertificate: async (id: string, userId: string, role: string) => {
+        const res = await fetch(`${API_URL}/certificates/${id}?userId=${userId}&role=${role}`, {
+            method: 'DELETE',
+            headers: getHeaders()
+        });
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+    },
+
     // Users
     getUsers: async (role?: string): Promise<User[]> => {
         const params = role ? `?role=${role}` : '';
@@ -134,6 +143,14 @@ export const api = {
             method: 'POST',
             headers: getHeaders(),
             body: JSON.stringify({ studentIds })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+    },
+
+    getAuditLogs: async () => {
+        const res = await fetch(`${API_URL}/admin/logs`, {
+            headers: getHeaders()
         });
         if (!res.ok) throw new Error(await res.text());
         return res.json();

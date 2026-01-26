@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { X, Upload, FileText, CheckCircle2 } from 'lucide-react';
 import { PLATFORMS } from '../constants';
@@ -41,11 +40,11 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onUpload }) => {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">Course Title</label>
-              <input 
+              <input
                 required
                 value={title}
                 onChange={e => setTitle(e.target.value)}
-                type="text" 
+                type="text"
                 placeholder="e.g. Advanced Machine Learning"
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
               />
@@ -54,7 +53,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onUpload }) => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2">Platform</label>
-                <select 
+                <select
                   value={platform}
                   onChange={e => setPlatform(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 transition-all outline-none"
@@ -66,11 +65,11 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onUpload }) => {
               </div>
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2">Issue Date</label>
-                <input 
+                <input
                   required
                   value={date}
                   onChange={e => setDate(e.target.value)}
-                  type="date" 
+                  type="date"
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 transition-all outline-none"
                 />
               </div>
@@ -79,13 +78,13 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onUpload }) => {
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">Certificate File</label>
               <div className={`relative border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center transition-all ${file ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-blue-300'}`}>
-                <input 
-                  type="file" 
-                  accept="image/*,.pdf" 
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
                   onChange={handleFileChange}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 />
-                
+
                 {file ? (
                   <div className="text-center animate-in fade-in scale-in">
                     <CheckCircle2 size={40} className="text-emerald-500 mx-auto mb-3" />
@@ -104,7 +103,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onUpload }) => {
           </div>
 
           <div className="pt-4">
-            <button 
+            <button
               type="submit"
               disabled={!file || !title}
               className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700 disabled:bg-slate-300 disabled:shadow-none transition-all flex items-center justify-center gap-2"

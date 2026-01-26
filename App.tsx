@@ -229,6 +229,19 @@ const MainApp: React.FC = () => {
     }
   };
 
+  const handleDeleteCertificate = async (id: string) => {
+    if (!user) return;
+    setIsBusy(true);
+    try {
+      await api.deleteCertificate(id, user.id, user.role);
+      setCertificates(prev => prev.filter(c => c.id !== id));
+    } catch (e: any) {
+      alert(e.message || "Deletion failed");
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
   const handleStudentClick = (studentId: string) => {
     const student = allUsers.find(u => u.id === studentId);
     if (student) {
@@ -461,6 +474,7 @@ const MainApp: React.FC = () => {
                 onPreview={setSelectedCert}
                 onDownload={handleDownload}
                 onVerify={handleVerify}
+                onDelete={handleDeleteCertificate}
                 onStudentClick={handleStudentClick}
                 onCourseClick={handleCourseClick}
               />
@@ -490,6 +504,7 @@ const MainApp: React.FC = () => {
               onPreview={setSelectedCert}
               onDownload={handleDownload}
               onVerify={handleVerify}
+              onDelete={handleDeleteCertificate}
               onStudentClick={handleStudentClick}
               onCourseClick={handleCourseClick}
             />

@@ -10,11 +10,8 @@ const AuditLogViewer = () => {
     useEffect(() => {
         const fetchLogs = async () => {
             try {
-                const res = await fetch('/api/admin/logs', {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                });
-                const data = await res.json();
-                setLogs(data);
+                const data = await api.getAuditLogs();
+                setLogs(Array.isArray(data) ? data : []);
             } catch (err) {
                 console.error('Fetch Logs Error:', err);
             } finally {

@@ -432,9 +432,10 @@ app.post('/api/certificates', async (req, res) => {
 
       // 3. Insert to DB
       const id = `c${Date.now()}`;
+      const status = req.body.autoVerify ? 'VERIFIED' : 'PENDING';
       await connection.execute(
         'INSERT INTO certificates (id, student_id, title, platform, issued_date, file_url, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [id, studentId, title, platform, issuedDate, fileUrl, 'PENDING']
+        [id, studentId, title, platform, issuedDate, fileUrl, status]
       );
 
       // Return camelCase to match types.ts
@@ -449,7 +450,6 @@ app.post('/api/certificates', async (req, res) => {
         platform,
         issuedDate,
         fileUrl,
-        status: 'PENDING'
       });
     } finally {
       await connection.end();
@@ -524,6 +524,35 @@ app.get('/api/certificates', async (req, res) => {
   }
 });
 
+// Certificates: Delete (Student only their own, Admin all)
+app.delete('/api/certificates/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId, role } = req.query;
+
+    const connection = await mysql.createConnection(dbConfig);
+    try {
+      const [certs] = await connection.execute('SELECT * FROM certificates WHERE id = ?', [id]);
+      if (certs.length === 0) return res.status(404).json({ error: 'Certificate not found' });
+
+      const cert = certs[0];
+      if (role !== 'ADMIN' && cert.student_id !== userId) {
+        return res.status(403).json({ error: 'Unauthorized to delete this certificate' });
+      }
+
+      await connection.execute('DELETE FROM certificates WHERE id = ?', [id]);
+      await logAction(userId || 'unknown', 'SYSTEM', 'DELETE_CERT', `Deleted certificate ${id} (${cert.title})`);
+
+      res.json({ success: true, message: 'Certificate deleted successfully' });
+    } finally {
+      await connection.end();
+    }
+  } catch (err) {
+    console.error('Delete Certificate Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Certificates: Update (Verify/Reject)
 app.put('/api/certificates/:id', async (req, res) => {
   try {
@@ -532,7 +561,6 @@ app.put('/api/certificates/:id', async (req, res) => {
 
     const connection = await mysql.createConnection(dbConfig);
     try {
-      // Get student email for notification
       const [certs] = await connection.execute(
         'SELECT c.*, u.email, u.name as studentName FROM certificates c JOIN users u ON c.student_id = u.id WHERE c.id = ?',
         [id]
@@ -546,10 +574,8 @@ app.put('/api/certificates/:id', async (req, res) => {
         [status, remarks || null, verifiedBy, id]
       );
 
-      // Audit Log
       await logAction(verifiedBy, 'SYSTEM', status === 'VERIFIED' ? 'VERIFY' : 'REJECT', `Certificate ${id} marked as ${status}`);
 
-      // Email Notification
       const subject = `Certificate ${status}: ${cert.title}`;
       const text = `Hi ${cert.studentName},\n\nYour certificate for ${cert.title} has been ${status.toLowerCase()}.\nRemarks: ${remarks || 'None'}`;
       const html = `<h3>Hi ${cert.studentName},</h3><p>Your certificate for <b>${cert.title}</b> has been <b>${status.toLowerCase()}</b>.</p><p>Remarks: ${remarks || 'None'}</p>`;
@@ -600,7 +626,6 @@ app.delete('/api/users/:id', async (req, res) => {
     const { id } = req.params;
     const connection = await mysql.createConnection(dbConfig);
     try {
-      // 1. Check if user exists
       const [users] = await connection.execute('SELECT * FROM users WHERE id = ?', [id]);
       if (users.length === 0) return res.status(404).json({ error: 'User not found' });
 
@@ -609,18 +634,11 @@ app.delete('/api/users/:id', async (req, res) => {
         return res.status(403).json({ error: 'Admins cannot be deleted via this endpoint' });
       }
 
-      // 2. Cleanup related data (Manual cascade if DB doesn't have foreign key cascades)
-      // Delete enrollments
       await connection.execute('DELETE FROM class_enrollments WHERE student_id = ?', [id]);
-      // If teacher, clear teacher_id from classes or handle it
       await connection.execute('UPDATE classes SET teacher_id = "deleted" WHERE teacher_id = ?', [id]);
-      // Delete certificates (or keep them but unlinked? Usually delete for GDPR/Cleanup)
       await connection.execute('DELETE FROM certificates WHERE student_id = ?', [id]);
-
-      // 3. Delete the user
       await connection.execute('DELETE FROM users WHERE id = ?', [id]);
 
-      // 4. Log the action
       await logAction('ADMIN', 'SYSTEM', 'DELETE_USER', `Deleted user ${userToDelete.name} (${id})`);
 
       res.json({ success: true, message: `User ${userToDelete.name} deleted successfully` });
@@ -672,7 +690,6 @@ app.post('/api/platforms', async (req, res) => {
 
 // --- CLASSES ---
 
-// Get all classes with teacher names and student counts
 app.get('/api/classes', async (req, res) => {
   try {
     const connection = await mysql.createConnection(dbConfig);
@@ -692,7 +709,6 @@ app.get('/api/classes', async (req, res) => {
   }
 });
 
-// Create a new class
 app.post('/api/classes', async (req, res) => {
   try {
     const { name, courseName, teacherId } = req.body;
@@ -712,11 +728,10 @@ app.post('/api/classes', async (req, res) => {
   }
 });
 
-// Enroll students in a class (Bulk)
 app.post('/api/classes/:id/enroll', async (req, res) => {
   try {
     const { id: classId } = req.params;
-    const { studentIds } = req.body; // Expects an array
+    const { studentIds } = req.body;
 
     const connection = await mysql.createConnection(dbConfig);
     try {
@@ -746,11 +761,9 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Export for Vercel
 export default app;
 
 const PORT = process.env.PORT || 5000;
-// Render/Standard hosts need to listen and init DB
 if (process.env.NODE_ENV !== 'production' || process.env.RENDER || !process.env.VERCEL) {
   initDB().then(() => {
     app.listen(PORT, () => console.log(`🚀 CertHub Server running on http://localhost:${PORT}`));
