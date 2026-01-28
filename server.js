@@ -165,6 +165,15 @@ const initDB = async () => {
       await connection.execute(sql);
     }
 
+    // 3. Schema Migrations (Ensure missing columns exist)
+    console.log('🔄 Running Schema Migrations...');
+    try { await connection.execute('ALTER TABLE users ADD COLUMN department VARCHAR(100)'); } catch (e) { }
+    try { await connection.execute('ALTER TABLE users ADD COLUMN current_class VARCHAR(100)'); } catch (e) { }
+    try { await connection.execute('ALTER TABLE users ADD COLUMN section VARCHAR(50)'); } catch (e) { }
+    try { await connection.execute('ALTER TABLE users ADD COLUMN roll_number VARCHAR(50)'); } catch (e) { }
+    try { await connection.execute('ALTER TABLE users ADD COLUMN mobile_number VARCHAR(20)'); } catch (e) { }
+    try { await connection.execute('ALTER TABLE users ADD UNIQUE INDEX idx_roll (roll_number)'); } catch (e) { }
+
     // Performance Indexes
     try { await connection.execute('ALTER TABLE certificates ADD INDEX idx_student (student_id)'); } catch (e) { }
     try { await connection.execute('ALTER TABLE certificates ADD INDEX idx_status (status)'); } catch (e) { }
@@ -195,14 +204,15 @@ const logAction = async (userId, userName, action, details) => {
 };
 
 // --- ROUTES ---
+const apiRouter = express.Router();
 
-// Health Check
+// Health Check (At root level)
 app.get('/', (req, res) => {
   res.send('CertHub API is running');
 });
 
 // Admin: Audit Logs
-app.get('/api/admin/logs', async (req, res) => {
+apiRouter.get('/admin/logs', async (req, res) => {
   try {
     const connection = await mysql.createConnection(dbConfig);
     let rows;
@@ -219,7 +229,7 @@ app.get('/api/admin/logs', async (req, res) => {
 });
 
 // Public: Verify Certificate (No Auth Required)
-app.get('/api/public/certificates/:id', async (req, res) => {
+apiRouter.get('/public/certificates/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const connection = await mysql.createConnection(dbConfig);
@@ -259,7 +269,7 @@ app.get('/api/public/certificates/:id', async (req, res) => {
 });
 
 // Auth: Register
-app.post('/api/register', async (req, res) => {
+apiRouter.post('/register', async (req, res) => {
   try {
     const { name, email, password, role, department, currentClass, section, rollNumber, mobileNumber } = req.body;
 
@@ -345,7 +355,7 @@ app.post('/api/register', async (req, res) => {
 });
 
 // Auth: Login
-app.post('/api/login', async (req, res) => {
+apiRouter.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     const connection = await mysql.createConnection(dbConfig);
@@ -370,8 +380,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Auth: Forgot Password
-app.post('/api/forgot-password', async (req, res) => {
+apiRouter.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
     const connection = await mysql.createConnection(dbConfig);
@@ -379,16 +388,13 @@ app.post('/api/forgot-password', async (req, res) => {
       const [users] = await connection.execute('SELECT * FROM users WHERE email = ?', [email]);
 
       if (users.length === 0) {
-        // Security: Don't reveal if user exists
         return res.json({ success: true, message: 'If your email is registered, you will receive a reset link.' });
       }
 
       const user = users[0];
-      // Generate a temporary reset token (You might want to store this in DB in a real app)
       const resetToken = jwt.sign({ id: user.id, type: 'reset' }, JWT_SECRET, { expiresIn: '15m' });
 
-      // Send Email
-      const resetLink = `${req.protocol}://${req.get('host')}/reset-password?token=${resetToken}`; // In production, use frontend URL
+      const resetLink = `${req.protocol}://${req.get('host')}/reset-password?token=${resetToken}`;
       const subject = 'Password Reset Request';
       const text = `Hi ${user.name},\n\nYou requested a password reset. Click here to reset: ${resetLink}\n\nLink expires in 15 minutes.`;
       const html = `<p>Hi ${user.name},</p><p>You requested a password reset.</p><p><a href="${resetLink}">Click here to reset password</a></p><p>Link expires in 15 minutes.</p>`;
@@ -405,52 +411,25 @@ app.post('/api/forgot-password', async (req, res) => {
   }
 });
 
-// Certificates: Upload & AI Analyze
-app.post('/api/certificates', async (req, res) => {
+apiRouter.post('/certificates', async (req, res) => {
   try {
     const { title, platform, issuedDate, studentId, imageBase64 } = req.body;
-
-    // 1. Upload to Cloudinary
-    const uploadRes = await cloudinary.uploader.upload(imageBase64, {
-      folder: 'certhub_certificates'
-    });
+    const uploadRes = await cloudinary.uploader.upload(imageBase64, { folder: 'certhub_certificates' });
     const fileUrl = uploadRes.secure_url;
-
-    // 2. Fetch student name for the response (so frontend update has it)
     const connection = await mysql.createConnection(dbConfig);
     let studentDetails = { name: 'Unknown', roll: '', class: '', section: '' };
     try {
       const [uRows] = await connection.execute('SELECT name, roll_number, current_class, section FROM users WHERE id = ?', [studentId]);
       if (uRows.length > 0) {
-        studentDetails = {
-          name: uRows[0].name,
-          roll: uRows[0].roll_number,
-          class: uRows[0].current_class,
-          section: uRows[0].section
-        };
+        studentDetails = { name: uRows[0].name, roll: uRows[0].roll_number, class: uRows[0].current_class, section: uRows[0].section };
       }
-
-      // 3. Insert to DB
       const id = `c${Date.now()}`;
       const status = req.body.autoVerify ? 'VERIFIED' : 'PENDING';
       await connection.execute(
         'INSERT INTO certificates (id, student_id, title, platform, issued_date, file_url, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [id, studentId, title, platform, issuedDate, fileUrl, status]
       );
-
-      // Return camelCase to match types.ts
-      res.json({
-        id,
-        studentId,
-        studentName: studentDetails.name,
-        studentRoll: studentDetails.roll,
-        studentClass: studentDetails.class,
-        studentSection: studentDetails.section,
-        title,
-        platform,
-        issuedDate,
-        fileUrl,
-      });
+      res.json({ id, studentId, studentName: studentDetails.name, studentRoll: studentDetails.roll, studentClass: studentDetails.class, studentSection: studentDetails.section, title, platform, issuedDate, fileUrl });
     } finally {
       await connection.end();
     }
@@ -460,7 +439,7 @@ app.post('/api/certificates', async (req, res) => {
   }
 });
 
-app.get('/api/certificates', async (req, res) => {
+apiRouter.get('/certificates', async (req, res) => {
   try {
     const { studentId, teacherId, title } = req.query;
     let query = `
@@ -474,52 +453,16 @@ app.get('/api/certificates', async (req, res) => {
     `;
     let params = [];
     let conditions = [];
-
-    if (studentId) {
-      conditions.push('c.student_id = ?');
-      params.push(studentId);
-    }
-
-    if (title) {
-      conditions.push('c.title = ?');
-      params.push(title);
-    }
-
-    if (conditions.length > 0) {
-      query += ' WHERE ' + conditions.join(' AND ');
-    }
-
+    if (studentId) { conditions.push('c.student_id = ?'); params.push(studentId); }
+    if (title) { conditions.push('c.title = ?'); params.push(title); }
+    if (conditions.length > 0) { query += ' WHERE ' + conditions.join(' AND '); }
     query += ' ORDER BY c.issued_date DESC, c.created_at DESC';
-
-    // Note: For teacherId, we would need to join with users/mappings, but keeping it simple for now
-    // Assuming teacher wants to see all checks or logic handles it in frontend filtering for this MVP
-
     const connection = await mysql.createConnection(dbConfig);
     let rows;
-    try {
-      [rows] = await connection.execute(query, params);
-    } finally {
-      await connection.end();
-    }
-
-    // Map snake_case to camelCase
+    try { [rows] = await connection.execute(query, params); } finally { await connection.end(); }
     const certificates = rows.map(row => ({
-      id: row.id,
-      studentId: row.student_id,
-      studentName: row.student_name || 'Missing Name',
-      studentRoll: row.student_roll || 'N/A',
-      studentClass: row.student_class || 'N/A',
-      studentSection: row.student_section || '',
-      title: row.title,
-      platform: row.platform,
-      issuedDate: row.issued_date,
-      fileUrl: row.file_url,
-      status: row.status,
-      remarks: row.remarks || '',
-      verifiedBy: row.verified_by || 'Not Verified',
-      verifiedAt: row.verified_at
+      id: row.id, studentId: row.student_id, studentName: row.student_name, studentRoll: row.student_roll, studentClass: row.student_class, studentSection: row.student_section, title: row.title, platform: row.platform, issuedDate: row.issued_date, fileUrl: row.file_url, status: row.status, remarks: row.remarks || '', verifiedBy: row.verified_by || 'Not Verified', verifiedAt: row.verified_at
     }));
-
     res.json(certificates);
   } catch (err) {
     console.error('Get Certificates Error:', err);
@@ -527,26 +470,24 @@ app.get('/api/certificates', async (req, res) => {
   }
 });
 
-// Certificates: Delete (Student only their own, Admin all)
-app.delete('/api/certificates/:id', async (req, res) => {
+apiRouter.delete('/certificates/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { userId, role } = req.query;
-
+    if (!userId) { return res.status(401).json({ error: 'User ID is required for deletion' }); }
     const connection = await mysql.createConnection(dbConfig);
     try {
       const [certs] = await connection.execute('SELECT * FROM certificates WHERE id = ?', [id]);
       if (certs.length === 0) return res.status(404).json({ error: 'Certificate not found' });
-
       const cert = certs[0];
       if (role !== 'ADMIN' && cert.student_id !== userId) {
+        console.warn(`🛑 Unauthorized delete attempt for cert ${id} by user ${userId} (role: ${role})`);
         return res.status(403).json({ error: 'Unauthorized to delete this certificate' });
       }
-
-      console.log(`🗑️ Deleting certificate ${id} requested by user ${userId} (role: ${role})`);
       await connection.execute('DELETE FROM certificates WHERE id = ?', [id]);
-      await logAction(userId || 'unknown', 'SYSTEM', 'DELETE_CERT', `Deleted certificate ${id} (${cert.title})`);
-
+      const [uRows] = await connection.execute('SELECT name FROM users WHERE id = ?', [userId]);
+      const userName = (uRows.length > 0) ? uRows[0].name : 'Unknown User';
+      await logAction(userId, userName, 'DELETE_CERT', `Deleted certificate ${id} (${cert.title})`);
       res.json({ success: true, message: 'Certificate deleted successfully' });
     } finally {
       await connection.end();
@@ -557,39 +498,24 @@ app.delete('/api/certificates/:id', async (req, res) => {
   }
 });
 
-// Certificates: Update (Verify/Reject)
-app.put('/api/certificates/:id', async (req, res) => {
+apiRouter.put('/certificates/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { status, remarks, verifiedBy } = req.body;
-
     const connection = await mysql.createConnection(dbConfig);
     try {
-      const [certs] = await connection.execute(
-        'SELECT c.*, u.email, u.name as studentName FROM certificates c JOIN users u ON c.student_id = u.id WHERE c.id = ?',
-        [id]
-      );
-
+      const [certs] = await connection.execute('SELECT c.*, u.email, u.name as studentName FROM certificates c JOIN users u ON c.student_id = u.id WHERE c.id = ?', [id]);
       if (certs.length === 0) return res.status(404).json({ error: 'Certificate not found' });
       const cert = certs[0];
-
-      await connection.execute(
-        'UPDATE certificates SET status = ?, remarks = ?, verified_by = ?, verified_at = NOW() WHERE id = ?',
-        [status, remarks || null, verifiedBy, id]
-      );
-
+      await connection.execute('UPDATE certificates SET status = ?, remarks = ?, verified_by = ?, verified_at = NOW() WHERE id = ?', [status, remarks || null, verifiedBy, id]);
       await logAction(verifiedBy, 'SYSTEM', status === 'VERIFIED' ? 'VERIFY' : 'REJECT', `Certificate ${id} marked as ${status}`);
-
       const subject = `Certificate ${status}: ${cert.title}`;
       const text = `Hi ${cert.studentName},\n\nYour certificate for ${cert.title} has been ${status.toLowerCase()}.\nRemarks: ${remarks || 'None'}`;
       const html = `<h3>Hi ${cert.studentName},</h3><p>Your certificate for <b>${cert.title}</b> has been <b>${status.toLowerCase()}</b>.</p><p>Remarks: ${remarks || 'None'}</p>`;
-
       await sendEmail(cert.email, subject, text, html);
-
     } finally {
       await connection.end();
     }
-
     res.json({ success: true, id, status });
   } catch (err) {
     console.error('Update Certificate Error:', err);
@@ -598,7 +524,7 @@ app.put('/api/certificates/:id', async (req, res) => {
 });
 
 // Users: Get All (for Teachers to see Students)
-app.get('/api/users', async (req, res) => {
+apiRouter.get('/users', async (req, res) => {
   try {
     const { role } = req.query;
     let query = 'SELECT id, name, email, role, avatar, department, current_class as currentClass, section, roll_number as rollNumber, mobile_number as mobileNumber FROM users';
@@ -625,7 +551,7 @@ app.get('/api/users', async (req, res) => {
 });
 
 // Users: Delete (Admin Only)
-app.delete('/api/users/:id', async (req, res) => {
+apiRouter.delete('/users/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const connection = await mysql.createConnection(dbConfig);
@@ -656,7 +582,7 @@ app.delete('/api/users/:id', async (req, res) => {
 });
 
 // Platforms: Get All & Add
-app.get('/api/platforms', async (req, res) => {
+apiRouter.get('/platforms', async (req, res) => {
   try {
     const connection = await mysql.createConnection(dbConfig);
     let rows;
@@ -672,7 +598,7 @@ app.get('/api/platforms', async (req, res) => {
   }
 });
 
-app.post('/api/platforms', async (req, res) => {
+apiRouter.post('/platforms', async (req, res) => {
   try {
     const { name, color, icon } = req.body;
     const id = `p${Date.now()}`;
@@ -694,7 +620,7 @@ app.post('/api/platforms', async (req, res) => {
 
 // --- CLASSES ---
 
-app.get('/api/classes', async (req, res) => {
+apiRouter.get('/classes', async (req, res) => {
   try {
     const connection = await mysql.createConnection(dbConfig);
     try {
@@ -713,7 +639,7 @@ app.get('/api/classes', async (req, res) => {
   }
 });
 
-app.post('/api/classes', async (req, res) => {
+apiRouter.post('/classes', async (req, res) => {
   try {
     const { name, courseName, teacherId } = req.body;
     const id = `cls${Date.now()}`;
@@ -732,7 +658,7 @@ app.post('/api/classes', async (req, res) => {
   }
 });
 
-app.post('/api/classes/:id/enroll', async (req, res) => {
+apiRouter.post('/classes/:id/enroll', async (req, res) => {
   try {
     const { id: classId } = req.params;
     const { studentIds } = req.body;
@@ -755,6 +681,30 @@ app.post('/api/classes/:id/enroll', async (req, res) => {
   }
 });
 
+// Shared Database connection cache for serverless
+let dbInstance = null;
+const ensureDB = async () => {
+  if (!dbInstance) {
+    await initDB();
+    dbInstance = true;
+  }
+};
+
+// Database Initialization Middleware (Shared between Vercel and traditional environments)
+app.use(async (req, res, next) => {
+  if (req.path === '/') return next(); // Skip DB for health check
+  try {
+    await ensureDB();
+    next();
+  } catch (err) {
+    console.error('DB_INITIALIZATION_ERROR:', err);
+    res.status(500).json({ error: 'Database connection failed' });
+  }
+});
+
+// Use API Router
+app.use('/api', apiRouter);
+
 // Global Error Handler
 app.use((err, req, res, next) => {
   console.error('SERVER_ERROR:', err);
@@ -767,12 +717,8 @@ app.use((err, req, res, next) => {
 
 export default app;
 
-const PORT = process.env.PORT || 5000;
+const PORT = parseInt(process.env.PORT || '5000');
+
 if (process.env.NODE_ENV !== 'production' || process.env.RENDER || !process.env.VERCEL) {
-  initDB().then(() => {
-    app.listen(PORT, () => console.log(`🚀 CertHub Server running on http://localhost:${PORT}`));
-  }).catch(err => {
-    console.error('🛑 Server failed to start due to DB initialization error');
-    process.exit(1);
-  });
+  app.listen(PORT, '0.0.0.0', () => console.log(`🚀 CertHub Server running on http://localhost:${PORT}`));
 }

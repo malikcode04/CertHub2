@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Certificate, CertificateStatus, UserRole } from '../types';
-import { ExternalLink, CheckCircle, XCircle, Clock, MoreVertical, Eye, Download, AlertTriangle } from 'lucide-react';
+import { ExternalLink, CheckCircle, XCircle, Clock, MoreVertical, Eye, Download, AlertTriangle, Trash2 } from 'lucide-react';
 
 interface CertificateTableProps {
   certificates: Certificate[];
@@ -167,7 +167,7 @@ const CertificateTable: React.FC<CertificateTableProps> = ({
                           className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                           title="Delete Certificate"
                         >
-                          <XCircle size={18} />
+                          <Trash2 size={18} />
                         </button>
                       )}
                     </div>

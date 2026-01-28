@@ -28,32 +28,35 @@ const BulkImport: React.FC<BulkImportProps> = ({ onSuccess }) => {
         }
     };
 
-    const handleImport = async () => {
+    const handleImportClick = async () => {
         if (data.length === 0) return;
         setIsProcessing(true);
-        let success = 0;
-        let failed = 0;
-        const errors: string[] = [];
+        let successCount = 0;
+        let failedCount = 0;
+        const errorsList: string[] = [];
 
         for (const user of data) {
             try {
-                // Bulk import endpoint or loop register
                 await api.register({
                     name: user.name,
                     email: user.email,
                     password: user.password || 'Student@123',
-                    role: 'STUDENT'
+                    role: 'STUDENT',
+                    rollNumber: user.rollNumber || user.roll_number || '',
+                    department: user.department || '',
+                    currentClass: user.currentClass || user.class || '',
+                    section: user.section || ''
                 });
-                success++;
+                successCount++;
             } catch (err: any) {
-                failed++;
-                errors.push(`${user.email}: ${err.message}`);
+                failedCount++;
+                errorsList.push(`${user.email}: ${err.message}`);
             }
         }
 
-        setResults({ success, failed, errors });
+        setResults({ success: successCount, failed: failedCount, errors: errorsList });
         setIsProcessing(false);
-        if (success > 0) onSuccess();
+        if (successCount > 0) onSuccess();
     };
 
     return (
@@ -64,7 +67,7 @@ const BulkImport: React.FC<BulkImportProps> = ({ onSuccess }) => {
                 </div>
                 <div>
                     <h2 className="text-xl font-black text-slate-800">Bulk Student Import</h2>
-                    <p className="text-sm text-slate-500">Upload CSV with: name, email, password</p>
+                    <p className="text-sm text-slate-500">Upload CSV with: name, email, rollNumber, department, currentClass, section, password</p>
                 </div>
             </div>
 
@@ -91,7 +94,7 @@ const BulkImport: React.FC<BulkImportProps> = ({ onSuccess }) => {
                     )}
 
                     <button
-                        onClick={handleImport}
+                        onClick={handleImportClick}
                         disabled={data.length === 0 || isProcessing}
                         className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-blue-700 transition-all disabled:opacity-50"
                     >
