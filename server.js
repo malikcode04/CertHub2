@@ -690,7 +690,7 @@ const ensureDB = async () => {
   }
 };
 
-// Database Initialization Middleware (Shared between Vercel and traditional environments)
+// Database Initialization Middleware (MUST run before routes)
 app.use(async (req, res, next) => {
   if (req.path === '/') return next(); // Skip DB for health check
   try {
@@ -715,10 +715,11 @@ app.use((err, req, res, next) => {
   });
 });
 
+// For Vercel serverless
 export default app;
 
+// For local/traditional deployment
 const PORT = parseInt(process.env.PORT || '5000');
-
 if (process.env.NODE_ENV !== 'production' || process.env.RENDER || !process.env.VERCEL) {
   app.listen(PORT, '0.0.0.0', () => console.log(`🚀 CertHub Server running on http://localhost:${PORT}`));
 }
