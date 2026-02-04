@@ -798,19 +798,12 @@ app.delete('/api/certificates/:id', handleCertDelete);
 app.delete('/certificates/:id', handleCertDelete);
 
 // --- DEBUG ENDPOINT (Temporary) ---
+apiRouter.get('/debug/test', (req, res) => {
+  res.json({ status: 'API IS ALIVE', time: new Date().toISOString() });
+});
+
 apiRouter.get('/debug/data', async (req, res) => {
-  try {
-    const connection = await mysql.createConnection(dbConfig);
-    try {
-      const [users] = await connection.execute('SELECT id, name, email, roll_number FROM users LIMIT 10');
-      const [certs] = await connection.execute('SELECT id, student_id, title FROM certificates LIMIT 10');
-      res.json({ users, certs });
-    } finally {
-      await connection.end();
-    }
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  res.json({ message: "DB inspection disabled for this test" });
 });
 
 // Use API Router
