@@ -16,8 +16,8 @@ dotenv.config();
 const app = express();
 
 // --- SECURITY & LOGGING ---
-// app.use(helmet()); // Basic security headers
-// app.use(morgan('dev')); // Request logging
+app.use(helmet()); // Basic security headers
+app.use(morgan('dev')); // Request logging
 app.use(cors({
   origin: true, // Allow all origins (or refine for production)
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -33,11 +33,9 @@ const authLimiter = rateLimit({
   message: { error: 'Too many requests from this IP, please try again after 15 minutes' }
 });
 
-/*
 app.use('/api/login', authLimiter);
 app.use('/api/register', authLimiter);
 app.use('/api/public', authLimiter);
-*/
 
 // --- CONFIGURATION ---
 // Put your keys in .env file or Vercel Environment Variables
@@ -47,9 +45,10 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-for-dev-only';
-if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
-  console.error('❌ WARNING: JWT_SECRET is missing in production! Using fallback.');
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+  console.error('❌ CRITICAL: JWT_SECRET is missing in production!');
+  process.exit(1);
 }
 
 const dbConfig = {
@@ -93,11 +92,11 @@ const validateEnv = () => {
   const required = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'CLOUDINARY_CLOUD_NAME'];
   const missing = required.filter(key => !process.env[key]);
   if (missing.length > 0) {
-    console.error(`❌ WARNING: Missing environment variables: ${missing.join(', ')}`);
-    // process.exit(1); // Disabled to allow Vercel logs to surface issues
+    console.error(`❌ CRITICAL: Missing environment variables: ${missing.join(', ')}`);
+    process.exit(1);
   }
 };
-// validateEnv();
+validateEnv();
 
 const initDB = async () => {
   const connection = await mysql.createConnection(dbConfig);
