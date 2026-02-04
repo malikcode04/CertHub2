@@ -719,6 +719,44 @@ app.use((req, res, next) => {
   next();
 });
 
+// --- EXPLICIT DELETE HANDLER (Hotfix for Vercel Routing) ---
+const handleCertDelete = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId, role } = req.query;
+    console.log(`[EXPLICIT DELETE] Request for ${id} by ${userId} (${role})`);
+
+    if (!userId) { return res.status(401).json({ error: 'User ID is required' }); }
+
+    const connection = await mysql.createConnection(dbConfig);
+    try {
+      const [certs] = await connection.execute('SELECT * FROM certificates WHERE id = ?', [id]);
+      if (certs.length === 0) return res.status(404).json({ error: 'Certificate not found' });
+
+      const cert = certs[0];
+      const reqRole = (role || '').toString().toUpperCase();
+      const reqUserId = (userId || '').toString().trim();
+      const certOwnerId = (cert.student_id || '').toString().trim();
+
+      if (reqRole !== 'ADMIN' && reqUserId !== certOwnerId) {
+        console.warn(`🛑 Unauthorized delete: ${id}`);
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+
+      await connection.execute('DELETE FROM certificates WHERE id = ?', [id]);
+      res.json({ success: true, message: 'Deleted successfully' });
+    } finally {
+      await connection.end();
+    }
+  } catch (err) {
+    console.error('Explicit Delete Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.delete('/api/certificates/:id', handleCertDelete);
+app.delete('/certificates/:id', handleCertDelete);
+
 // Use API Router
 app.use('/api', apiRouter);
 app.use(apiRouter); // Fallback: If Vercel strips /api prefix, mount at root too.
