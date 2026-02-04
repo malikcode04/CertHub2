@@ -449,16 +449,15 @@ apiRouter.get('/certificates', async (req, res) => {
     const { studentId, teacherId, title } = req.query;
     let query = `
       SELECT c.*, 
-      COALESCE(NULLIF(u.name, ''), 'Unknown') as real_student_name,
-      COALESCE(NULLIF(u.name, ''), CONCAT('Student ', c.student_id)) as student_name, 
-      COALESCE(NULLIF(u.roll_number, ''), 'N/A') as student_roll, 
-      COALESCE(NULLIF(u.current_class, ''), 'N/A') as student_class, 
-      COALESCE(NULLIF(u.section, ''), '') as student_section,
-      u.email as student_email,
-      u.mobile_number as student_mobile,
-      u.department as student_department,
-      u.avatar as student_avatar,
-      u.role as student_role
+      u.name as u_name,
+      u.roll_number as u_roll,
+      u.current_class as u_class,
+      u.section as u_section,
+      u.email as u_email,
+      u.mobile_number as u_mobile,
+      u.department as u_department,
+      u.avatar as u_avatar,
+      u.role as u_role
       FROM certificates c 
       LEFT JOIN users u ON TRIM(c.student_id) = TRIM(u.id)
     `;
@@ -485,15 +484,16 @@ apiRouter.get('/certificates', async (req, res) => {
     const certificates = rows.map(row => ({
       id: row.id,
       studentId: row.student_id,
-      studentName: row.student_name,
-      studentRoll: row.student_roll,
-      studentClass: row.student_class,
-      studentSection: row.student_section,
-      studentEmail: row.student_email,
-      studentMobile: row.student_mobile,
-      studentDepartment: row.student_department,
-      studentAvatar: row.student_avatar,
-      studentRole: row.student_role,
+      studentName: row.u_name || `Student ${row.student_id}`,
+      realStudentName: row.u_name, // For debugging or checking if truly verified
+      studentRoll: row.u_roll || 'N/A',
+      studentClass: row.u_class || 'N/A',
+      studentSection: row.u_section || '',
+      studentEmail: row.u_email,
+      studentMobile: row.u_mobile,
+      studentDepartment: row.u_department,
+      studentAvatar: row.u_avatar,
+      studentRole: row.u_role,
       title: row.title,
       platform: row.platform,
       issuedDate: row.issued_date,
