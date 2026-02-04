@@ -446,7 +446,7 @@ apiRouter.post('/certificates', async (req, res) => {
 
 apiRouter.get('/certificates', async (req, res) => {
   try {
-    const { studentId, teacherId, title } = req.query;
+    const { studentId, title } = req.query;
     let query = `
       SELECT c.*, 
       u.name as u_name,
@@ -461,21 +461,23 @@ apiRouter.get('/certificates', async (req, res) => {
       FROM certificates c 
       LEFT JOIN users u ON (
         TRIM(c.student_id) = TRIM(u.id)
-        OR TRIM(c.student_id) = CONCAT('u', TRIM(u.id))
-        OR TRIM(u.id) = CONCAT('u', TRIM(c.student_id))
+        OR TRIM(c.student_id) = TRIM(u.roll_number)
+        OR REPLACE(REPLACE(TRIM(c.student_id), 'u', ''), 'U', '') = REPLACE(REPLACE(TRIM(u.id), 'u', ''), 'U', '')
       )
     `;
     let params = [];
     let conditions = [];
     if (studentId) { conditions.push('c.student_id = ?'); params.push(studentId); }
-    if (title) { conditions.push('c.title = ?'); params.push(title); }
+    if (title) { conditions.push('c.title LIKE ?'); params.push(`%${title}%`); }
     if (conditions.length > 0) { query += ' WHERE ' + conditions.join(' AND '); }
     query += ' ORDER BY c.issued_date DESC, c.created_at DESC';
+
     const connection = await mysql.createConnection(dbConfig);
     let rows;
     try {
       [rows] = await connection.execute(query, params);
     } finally { await connection.end(); }
+
     const certificates = rows.map(row => ({
       ...row,
       studentName: row.u_name || `Student ${row.student_id}`,
@@ -486,7 +488,12 @@ apiRouter.get('/certificates', async (req, res) => {
       studentMobile: row.u_mobile || 'N/A',
       studentDepartment: row.u_department || 'N/A',
       studentAvatar: row.u_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${row.student_id}`,
-      studentRole: row.u_role || 'STUDENT'
+      studentRole: row.u_role || 'STUDENT',
+      issuedDate: row.issued_date,
+      fileUrl: row.file_url,
+      verifiedBy: row.verified_by,
+      verifiedAt: row.verified_at,
+      createdAt: row.created_at
     }));
     res.json(certificates);
   } catch (err) {
@@ -495,39 +502,8 @@ apiRouter.get('/certificates', async (req, res) => {
   }
 });
 
-apiRouter.delete('/certificates/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { userId, role } = req.query;
-    if (!userId) { return res.status(401).json({ error: 'User ID is required for deletion' }); }
-    const connection = await mysql.createConnection(dbConfig);
-    try {
-      const [certs] = await connection.execute('SELECT * FROM certificates WHERE id = ?', [id]);
-      if (certs.length === 0) return res.status(404).json({ error: 'Certificate not found' });
-      const cert = certs[0];
-      const reqRole = (role || '').toString().toUpperCase();
-      const reqUserId = (userId || '').toString().trim();
-      const certOwnerId = (cert.student_id || '').toString().trim();
-
-      console.log(`[DEBUG] Delete Cert Request - ID: ${id}, User: ${reqUserId}, Role: ${reqRole}, Owner: ${certOwnerId}`);
-
-      if (reqRole !== 'ADMIN' && reqUserId !== certOwnerId) {
-        console.warn(`🛑 Unauthorized delete attempt for cert ${id} by user ${reqUserId} (role: ${reqRole}) vs Owner ${certOwnerId}`);
-        return res.status(403).json({ error: 'Unauthorized to delete this certificate' });
-      }
-      await connection.execute('DELETE FROM certificates WHERE id = ?', [id]);
-      const [uRows] = await connection.execute('SELECT name FROM users WHERE id = ?', [userId]);
-      const userName = (uRows.length > 0) ? uRows[0].name : 'Unknown User';
-      await logAction(userId, userName, 'DELETE_CERT', `Deleted certificate ${id} (${cert.title})`);
-      res.json({ success: true, message: 'Certificate deleted successfully' });
-    } finally {
-      await connection.end();
-    }
-  } catch (err) {
-    console.error('Delete Certificate Error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+// Consolidated Delete Certificate Route
+apiRouter.delete('/certificates/:id', handleCertDelete);
 
 apiRouter.put('/certificates/:id', async (req, res) => {
   try {
@@ -774,41 +750,8 @@ const handleCertDelete = async (req, res) => {
   }
 };
 
-app.delete('/api/certificates/:id', handleCertDelete);
-app.delete('/certificates/:id', handleCertDelete);
-
-// --- DEBUG ENDPOINT (Temporary) ---
-apiRouter.get('/debug/test', (req, res) => {
-  res.json({ status: 'API IS ALIVE', time: new Date().toISOString() });
-});
-
-apiRouter.get('/debug/env', (req, res) => {
-  res.json({
-    DB_HOST: process.env.DB_HOST ? 'SET' : 'MISSING',
-    DB_USER: process.env.DB_USER ? 'SET' : 'MISSING',
-    DB_NAME: process.env.DB_NAME ? 'SET' : 'MISSING',
-    NODE_ENV: process.env.NODE_ENV
-  });
-});
-
-apiRouter.get('/debug/data', async (req, res) => {
-  try {
-    const connection = await mysql.createConnection(dbConfig);
-    try {
-      const [users] = await connection.execute('SELECT id, name, email, roll_number FROM users LIMIT 10');
-      const [certs] = await connection.execute('SELECT id, student_id, title FROM certificates LIMIT 10');
-      res.json({ users, certs });
-    } finally {
-      await connection.end();
-    }
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // Use API Router
 app.use('/api', apiRouter);
-app.use(apiRouter); // Fallback: If Vercel strips /api prefix, mount at root too.
 
 // Global Error Handler
 // Global Error Handler
