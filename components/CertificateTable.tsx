@@ -58,6 +58,7 @@ const CertificateTable: React.FC<CertificateTableProps> = ({
           <thead>
             <tr className="bg-slate-50/50 border-b border-slate-200">
               {showStudentColumn && <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Student</th>}
+              {showStudentColumn && <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Roll No</th>}
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Course Details</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Platform</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Issue Date</th>
@@ -68,7 +69,7 @@ const CertificateTable: React.FC<CertificateTableProps> = ({
           <tbody className="divide-y divide-slate-100">
             {certificates.length === 0 ? (
               <tr>
-                <td colSpan={showStudentColumn ? 6 : 5} className="px-6 py-12 text-center text-slate-400">
+                <td colSpan={showStudentColumn ? 7 : 5} className="px-6 py-12 text-center text-slate-400">
                   No certificates found.
                 </td>
               </tr>
@@ -94,6 +95,13 @@ const CertificateTable: React.FC<CertificateTableProps> = ({
                           {cert.studentClass && cert.studentClass !== 'N/A' ? ` • ${cert.studentClass}` : ''}
                         </p>
                       </div>
+                    </td>
+                  )}
+                  {showStudentColumn && (
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-slate-600 font-medium">
+                        {cert.studentRoll || 'N/A'}
+                      </span>
                     </td>
                   )}
                   <td className="px-6 py-4">
