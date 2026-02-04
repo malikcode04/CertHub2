@@ -243,26 +243,29 @@ const MainApp: React.FC = () => {
   };
 
   const handleStudentClick = (studentId: string) => {
+    // 1. Try finding in loaded users list (Admin only usually)
     const student = allUsers.find(u => u.id === studentId);
     if (student) {
       setSelectedStudent(student);
-    } else {
-      const studentCerts = certificates.filter(c => c.studentId === studentId);
-      if (studentCerts.length > 0) {
-        const c = studentCerts[0];
-        setSelectedStudent({
-          id: c.studentId,
-          name: c.studentName || 'Unknown',
-          email: 'N/A',
-          role: UserRole.STUDENT,
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.studentName}`,
-          department: 'N/A',
-          currentClass: c.studentClass,
-          section: c.studentSection,
-          rollNumber: c.studentRoll,
-          mobileNumber: 'N/A'
-        });
-      }
+      return;
+    }
+
+    // 2. Fallback: Construct user from enriched certificate data
+    const studentCerts = certificates.filter(c => c.studentId === studentId);
+    if (studentCerts.length > 0) {
+      const c = studentCerts[0];
+      setSelectedStudent({
+        id: c.studentId,
+        name: c.studentName || 'Unknown',
+        email: c.studentEmail || 'N/A', // Now available from backend
+        role: c.studentRole || UserRole.STUDENT,
+        avatar: c.studentAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.studentName}`,
+        department: c.studentDepartment || 'N/A',
+        currentClass: c.studentClass,
+        section: c.studentSection,
+        rollNumber: c.studentRoll,
+        mobileNumber: c.studentMobile || 'N/A'
+      });
     }
   };
 

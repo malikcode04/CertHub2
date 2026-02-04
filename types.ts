@@ -31,6 +31,13 @@ export interface Certificate {
   studentRoll?: string;
   studentClass?: string;
   studentSection?: string;
+  // Enriched fields for Profile Modal
+  studentEmail?: string;
+  studentMobile?: string;
+  studentDepartment?: string;
+  studentAvatar?: string;
+  studentRole?: UserRole;
+
   title: string;
   platform: string;
   issuedDate: string;

@@ -452,7 +452,12 @@ apiRouter.get('/certificates', async (req, res) => {
       COALESCE(NULLIF(u.name, ''), CONCAT('Student ', c.student_id)) as student_name, 
       COALESCE(NULLIF(u.roll_number, ''), 'N/A') as student_roll, 
       COALESCE(NULLIF(u.current_class, ''), 'N/A') as student_class, 
-      COALESCE(NULLIF(u.section, ''), '') as student_section 
+      COALESCE(NULLIF(u.section, ''), '') as student_section,
+      u.email as student_email,
+      u.mobile_number as student_mobile,
+      u.department as student_department,
+      u.avatar as student_avatar,
+      u.role as student_role
       FROM certificates c 
       LEFT JOIN users u ON c.student_id = u.id
     `;
@@ -466,7 +471,25 @@ apiRouter.get('/certificates', async (req, res) => {
     let rows;
     try { [rows] = await connection.execute(query, params); } finally { await connection.end(); }
     const certificates = rows.map(row => ({
-      id: row.id, studentId: row.student_id, studentName: row.student_name, studentRoll: row.student_roll, studentClass: row.student_class, studentSection: row.student_section, title: row.title, platform: row.platform, issuedDate: row.issued_date, fileUrl: row.file_url, status: row.status, remarks: row.remarks || '', verifiedBy: row.verified_by || 'Not Verified', verifiedAt: row.verified_at
+      id: row.id,
+      studentId: row.student_id,
+      studentName: row.student_name,
+      studentRoll: row.student_roll,
+      studentClass: row.student_class,
+      studentSection: row.student_section,
+      studentEmail: row.student_email,
+      studentMobile: row.student_mobile,
+      studentDepartment: row.student_department,
+      studentAvatar: row.student_avatar,
+      studentRole: row.student_role,
+      title: row.title,
+      platform: row.platform,
+      issuedDate: row.issued_date,
+      fileUrl: row.file_url,
+      status: row.status,
+      remarks: row.remarks || '',
+      verifiedBy: row.verified_by || 'Not Verified',
+      verifiedAt: row.verified_at
     }));
     res.json(certificates);
   } catch (err) {
