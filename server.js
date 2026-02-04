@@ -801,6 +801,15 @@ apiRouter.get('/debug/test', (req, res) => {
   res.json({ status: 'API IS ALIVE', time: new Date().toISOString() });
 });
 
+apiRouter.get('/debug/env', (req, res) => {
+  res.json({
+    DB_HOST: process.env.DB_HOST ? 'SET' : 'MISSING',
+    DB_USER: process.env.DB_USER ? 'SET' : 'MISSING',
+    DB_NAME: process.env.DB_NAME ? 'SET' : 'MISSING',
+    NODE_ENV: process.env.NODE_ENV
+  });
+});
+
 apiRouter.get('/debug/data', async (req, res) => {
   try {
     const connection = await mysql.createConnection(dbConfig);
