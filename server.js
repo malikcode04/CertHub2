@@ -480,8 +480,14 @@ apiRouter.delete('/certificates/:id', async (req, res) => {
       const [certs] = await connection.execute('SELECT * FROM certificates WHERE id = ?', [id]);
       if (certs.length === 0) return res.status(404).json({ error: 'Certificate not found' });
       const cert = certs[0];
-      if (role !== 'ADMIN' && cert.student_id !== userId) {
-        console.warn(`🛑 Unauthorized delete attempt for cert ${id} by user ${userId} (role: ${role})`);
+      const reqRole = (role || '').toString().toUpperCase();
+      const reqUserId = (userId || '').toString().trim();
+      const certOwnerId = (cert.student_id || '').toString().trim();
+
+      console.log(`[DEBUG] Delete Cert Request - ID: ${id}, User: ${reqUserId}, Role: ${reqRole}, Owner: ${certOwnerId}`);
+
+      if (reqRole !== 'ADMIN' && reqUserId !== certOwnerId) {
+        console.warn(`🛑 Unauthorized delete attempt for cert ${id} by user ${reqUserId} (role: ${reqRole}) vs Owner ${certOwnerId}`);
         return res.status(403).json({ error: 'Unauthorized to delete this certificate' });
       }
       await connection.execute('DELETE FROM certificates WHERE id = ?', [id]);

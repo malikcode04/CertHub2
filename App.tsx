@@ -312,7 +312,7 @@ const MainApp: React.FC = () => {
           {!isRegistering ? (
             !showForgot ? (
               <div className="text-center">
-                <ShieldCheck size={64} className="text-blue-600 mx-auto mb-6" />
+                <img src="/logo.png" alt="CertHub" className="w-20 h-20 mx-auto mb-6 rounded-full object-cover shadow-lg" />
                 <h1 className="text-3xl font-black mb-2">CertHub</h1>
                 <p className="text-slate-500 mb-8">Login to your centralized hub</p>
 
@@ -334,7 +334,7 @@ const MainApp: React.FC = () => {
               </div>
             ) : (
               <div className="text-center">
-                <ShieldCheck size={64} className="text-blue-600 mx-auto mb-6" />
+                <img src="/logo.png" alt="CertHub" className="w-20 h-20 mx-auto mb-6 rounded-full object-cover shadow-lg" />
                 <h2 className="text-2xl font-black mb-4">Reset Password</h2>
                 <p className="text-slate-500 mb-6">Enter your email to receive a reset link.</p>
                 <form onSubmit={handleForgotSubmit} className="space-y-4">
