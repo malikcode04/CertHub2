@@ -460,10 +460,9 @@ apiRouter.get('/certificates', async (req, res) => {
       u.role as u_role
       FROM certificates c 
       LEFT JOIN users u ON (
-        c.student_id = u.id 
-        OR c.student_id = CONCAT('u', u.id) 
-        OR u.id = CONCAT('u', c.student_id)
-        OR TRIM(c.student_id) = TRIM(u.id)
+        TRIM(c.student_id) = TRIM(u.id)
+        OR TRIM(c.student_id) = CONCAT('u', TRIM(u.id))
+        OR TRIM(u.id) = CONCAT('u', TRIM(c.student_id))
       )
     `;
     let params = [];
@@ -476,38 +475,20 @@ apiRouter.get('/certificates', async (req, res) => {
     let rows;
     try {
       [rows] = await connection.execute(query, params);
-      // DEBUG: Log first row to inspect JOIN result
-      if (rows.length > 0) {
-        console.log('[DEBUG] Certificate Join Sample:', {
-          certId: rows[0].id,
-          studentIdRaw: rows[0].student_id,
-          joinedName: rows[0].real_student_name,
-          joinedRoll: rows[0].student_roll
-        });
-      }
     } finally { await connection.end(); }
     const certificates = rows.map(row => ({
-      id: row.id,
-      studentId: row.student_id,
+      ...row,
       studentName: row.u_name || `Student ${row.student_id}`,
-      realStudentName: row.u_name, // For debugging or checking if truly verified
       studentRoll: row.u_roll || 'N/A',
       studentClass: row.u_class || 'N/A',
       studentSection: row.u_section || '',
-      studentEmail: row.u_email,
-      studentMobile: row.u_mobile,
-      studentDepartment: row.u_department,
-      studentAvatar: row.u_avatar,
-      studentRole: row.u_role,
-      title: row.title,
-      platform: row.platform,
-      issuedDate: row.issued_date,
-      fileUrl: row.file_url,
-      status: row.status,
-      remarks: row.remarks || '',
-      verifiedBy: row.verified_by || 'Not Verified',
-      verifiedAt: row.verified_at
+      studentEmail: row.u_email || 'N/A',
+      studentMobile: row.u_mobile || 'N/A',
+      studentDepartment: row.u_department || 'N/A',
+      studentAvatar: row.u_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${row.student_id}`,
+      studentRole: row.u_role || 'STUDENT'
     }));
+    res.json(certificates);
     res.json(certificates);
   } catch (err) {
     console.error('Get Certificates Error:', err);
