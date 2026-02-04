@@ -18,7 +18,12 @@ const app = express();
 // --- SECURITY & LOGGING ---
 app.use(helmet()); // Basic security headers
 app.use(morgan('dev')); // Request logging
-app.use(cors());
+app.use(cors({
+  origin: true, // Allow all origins (or refine for production)
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+app.options('*', cors()); // Enable pre-flight across-the-board
 app.use(express.json({ limit: '10mb' }));
 
 // Rate Limiting: Limit public/auth endpoints
@@ -719,6 +724,12 @@ app.use('/api', apiRouter);
 app.use(apiRouter); // Fallback: If Vercel strips /api prefix, mount at root too.
 
 // Global Error Handler
+// Global Error Handler
+app.use((req, res, next) => {
+  console.warn(`[404] Route not found: ${req.method} ${req.url}`);
+  res.status(404).json({ error: `Cannot ${req.method} ${req.url} - Endpoint not found` });
+});
+
 app.use((err, req, res, next) => {
   console.error('SERVER_ERROR:', err);
   res.status(err.status || 500).json({
