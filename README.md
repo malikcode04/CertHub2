@@ -44,4 +44,15 @@ Managing certificates across multiple platforms (Coursera, Udemy, EdX, etc.) can
 - **Security**: JWT Authentication, Bcrypt Hashing, and Rate Limiting.
 
 ---
+
+## 🗺 Future Roadmap
+We are constantly improving CertHub. Here is what we plan to build next:
+- **🎉 Automated Email Alerts**: Integration with `nodemailer` to notify students instantly upon certificate verification.
+- **🔍 Global Search**: Advanced filtering system to find certificates by any field (Name, Roll, Title) instantly.
+- **📊 Analytics Dashboard**: Visual stat cards and charts showing system-wide progress for Admins.
+- **📱 QR Verification**: Mobile-friendly QR codes on certificates for offline/physical verification.
+- **🌓 Dark Mode**: A modern, adaptive theme toggle for better visibility in different lighting.
+- **✨ Enhanced onboarding**: Better "Empty States" to guide new users through their first upload.
+
+---
 *CertHub: One Hub. All Certificates. Total Trust.*
