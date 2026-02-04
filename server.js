@@ -449,6 +449,7 @@ apiRouter.get('/certificates', async (req, res) => {
     const { studentId, teacherId, title } = req.query;
     let query = `
       SELECT c.*, 
+      COALESCE(NULLIF(u.name, ''), 'Unknown') as real_student_name,
       COALESCE(NULLIF(u.name, ''), CONCAT('Student ', c.student_id)) as student_name, 
       COALESCE(NULLIF(u.roll_number, ''), 'N/A') as student_roll, 
       COALESCE(NULLIF(u.current_class, ''), 'N/A') as student_class, 
@@ -459,7 +460,7 @@ apiRouter.get('/certificates', async (req, res) => {
       u.avatar as student_avatar,
       u.role as student_role
       FROM certificates c 
-      LEFT JOIN users u ON c.student_id = u.id
+      LEFT JOIN users u ON TRIM(c.student_id) = TRIM(u.id)
     `;
     let params = [];
     let conditions = [];
@@ -469,7 +470,18 @@ apiRouter.get('/certificates', async (req, res) => {
     query += ' ORDER BY c.issued_date DESC, c.created_at DESC';
     const connection = await mysql.createConnection(dbConfig);
     let rows;
-    try { [rows] = await connection.execute(query, params); } finally { await connection.end(); }
+    try {
+      [rows] = await connection.execute(query, params);
+      // DEBUG: Log first row to inspect JOIN result
+      if (rows.length > 0) {
+        console.log('[DEBUG] Certificate Join Sample:', {
+          certId: rows[0].id,
+          studentIdRaw: rows[0].student_id,
+          joinedName: rows[0].real_student_name,
+          joinedRoll: rows[0].student_roll
+        });
+      }
+    } finally { await connection.end(); }
     const certificates = rows.map(row => ({
       id: row.id,
       studentId: row.student_id,
