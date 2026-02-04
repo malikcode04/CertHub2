@@ -489,7 +489,6 @@ apiRouter.get('/certificates', async (req, res) => {
       studentRole: row.u_role || 'STUDENT'
     }));
     res.json(certificates);
-    res.json(certificates);
   } catch (err) {
     console.error('Get Certificates Error:', err);
     res.status(500).json({ error: err.message });
