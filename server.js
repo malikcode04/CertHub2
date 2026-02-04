@@ -16,8 +16,8 @@ dotenv.config();
 const app = express();
 
 // --- SECURITY & LOGGING ---
-app.use(helmet()); // Basic security headers
-app.use(morgan('dev')); // Request logging
+// app.use(helmet()); // Basic security headers
+// app.use(morgan('dev')); // Request logging
 app.use(cors({
   origin: true, // Allow all origins (or refine for production)
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -33,9 +33,11 @@ const authLimiter = rateLimit({
   message: { error: 'Too many requests from this IP, please try again after 15 minutes' }
 });
 
+/*
 app.use('/api/login', authLimiter);
 app.use('/api/register', authLimiter);
 app.use('/api/public', authLimiter);
+*/
 
 // --- CONFIGURATION ---
 // Put your keys in .env file or Vercel Environment Variables
@@ -95,7 +97,7 @@ const validateEnv = () => {
     // process.exit(1); // Disabled to allow Vercel logs to surface issues
   }
 };
-validateEnv();
+// validateEnv();
 
 const initDB = async () => {
   const connection = await mysql.createConnection(dbConfig);
