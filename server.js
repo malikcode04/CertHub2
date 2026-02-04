@@ -459,7 +459,12 @@ apiRouter.get('/certificates', async (req, res) => {
       u.avatar as u_avatar,
       u.role as u_role
       FROM certificates c 
-      LEFT JOIN users u ON TRIM(c.student_id) = TRIM(u.id)
+      LEFT JOIN users u ON (
+        c.student_id = u.id 
+        OR c.student_id = CONCAT('u', u.id) 
+        OR u.id = CONCAT('u', c.student_id)
+        OR TRIM(c.student_id) = TRIM(u.id)
+      )
     `;
     let params = [];
     let conditions = [];
