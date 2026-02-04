@@ -565,7 +565,7 @@ apiRouter.delete('/users/:id', async (req, res) => {
       }
 
       await connection.execute('DELETE FROM class_enrollments WHERE student_id = ?', [id]);
-      await connection.execute('UPDATE classes SET teacher_id = "deleted" WHERE teacher_id = ?', [id]);
+      // Removed invalid update: await connection.execute('UPDATE classes SET teacher_id = "deleted" WHERE teacher_id = ?', [id]);
       await connection.execute('DELETE FROM certificates WHERE student_id = ?', [id]);
       await connection.execute('DELETE FROM users WHERE id = ?', [id]);
 

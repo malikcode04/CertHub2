@@ -165,7 +165,7 @@ const CertificateTable: React.FC<CertificateTableProps> = ({
                         </>
                       )}
 
-                      {role === UserRole.STUDENT && (
+                      {(role === UserRole.STUDENT || role === UserRole.ADMIN) && (
                         <button
                           onClick={() => {
                             if (window.confirm("Are you sure you want to delete this certificate?")) {

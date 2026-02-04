@@ -59,7 +59,7 @@ const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, activeTab, se
     <>
       <div className="p-8 pb-4">
         <div className="flex items-center gap-3 mb-8">
-          <img src="/logo.jpg" alt="CertHub" className="w-10 h-10 rounded-full object-cover" />
+          <img src="/logo.png" alt="CertHub" className="w-10 h-10 rounded-full object-cover" />
           <h1 className="text-2xl font-black tracking-tight text-white">CertHub</h1>
         </div>
       </div>
@@ -133,7 +133,7 @@ const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, activeTab, se
             </button>
 
             <div className="flex lg:hidden items-center gap-2">
-              <img src="/logo.jpg" alt="CertHub" className="w-8 h-8 rounded-full object-cover" />
+              <img src="/logo.png" alt="CertHub" className="w-8 h-8 rounded-full object-cover" />
               <span className="text-xl font-black tracking-tight text-slate-900">CertHub</span>
             </div>
 
