@@ -802,7 +802,18 @@ apiRouter.get('/debug/test', (req, res) => {
 });
 
 apiRouter.get('/debug/data', async (req, res) => {
-  res.json({ message: "DB inspection disabled for this test" });
+  try {
+    const connection = await mysql.createConnection(dbConfig);
+    try {
+      const [users] = await connection.execute('SELECT id, name, email, roll_number FROM users LIMIT 10');
+      const [certs] = await connection.execute('SELECT id, student_id, title FROM certificates LIMIT 10');
+      res.json({ users, certs });
+    } finally {
+      await connection.end();
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Use API Router
