@@ -193,6 +193,7 @@ const initDB = async () => {
 };
 // Removed: initDB(); (We will call it in the listen block)
 
+// --- HELPERS ---
 const logAction = async (userId, userName, action, details) => {
   const connection = await mysql.createConnection(dbConfig);
   try {
@@ -208,8 +209,53 @@ const logAction = async (userId, userName, action, details) => {
   }
 };
 
+// --- EXPLICIT DELETE HANDLER (Shared logic) ---
+const handleCertDelete = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId, role } = req.query;
+    console.log(`[DELETE_REQUEST] Cert: ${id}, User: ${userId}, Role: ${role}`);
+
+    if (!userId) return res.status(401).json({ error: 'User ID is required' });
+
+    const connection = await mysql.createConnection(dbConfig);
+    try {
+      const [certs] = await connection.execute('SELECT * FROM certificates WHERE id = ?', [id]);
+      if (certs.length === 0) return res.status(404).json({ error: 'Certificate not found' });
+
+      const cert = certs[0];
+      const reqRole = (role || '').toString().toUpperCase();
+
+      // FUZZY MATCH IDs for permission check (Handles 'u' prefix or mismatch)
+      const normalize = (val) => (val || '').toString().trim().toLowerCase().replace(/^u/, '');
+      const isOwner = normalize(userId) === normalize(cert.student_id);
+
+      if (reqRole !== 'ADMIN' && !isOwner) {
+        console.warn(`🛑 Unauthorized delete: User ${userId} vs Owner ${cert.student_id}`);
+        return res.status(403).json({ error: 'Unauthorized to delete this' });
+      }
+
+      await connection.execute('DELETE FROM certificates WHERE id = ?', [id]);
+
+      // Log it
+      const [uRows] = await connection.execute('SELECT name FROM users WHERE id = ?', [userId]);
+      const userName = (uRows.length > 0) ? uRows[0].name : 'System/Unknown';
+      await logAction(userId, userName, 'DELETE_CERT', `Deleted cert: ${cert.title} (${id})`);
+
+      res.json({ success: true, message: 'Deleted successfully' });
+    } finally {
+      await connection.end();
+    }
+  } catch (err) {
+    console.error('Delete Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
 // --- ROUTES ---
 const apiRouter = express.Router();
+apiRouter.delete('/certificates/:id', handleCertDelete);
+
 
 // Health Check (At root level)
 app.get('/', (req, res) => {
@@ -447,6 +493,8 @@ apiRouter.post('/certificates', async (req, res) => {
 apiRouter.get('/certificates', async (req, res) => {
   try {
     const { studentId, title } = req.query;
+
+    // Robust JOIN with multiple fallbacks for ID types
     let query = `
       SELECT c.*, 
       u.name as u_name,
@@ -462,48 +510,49 @@ apiRouter.get('/certificates', async (req, res) => {
       LEFT JOIN users u ON (
         TRIM(c.student_id) = TRIM(u.id)
         OR TRIM(c.student_id) = TRIM(u.roll_number)
-        OR REPLACE(REPLACE(TRIM(c.student_id), 'u', ''), 'U', '') = REPLACE(REPLACE(TRIM(u.id), 'u', ''), 'U', '')
+        OR REPLACE(REPLACE(TRIM(LOWER(c.student_id)), 'u', ''), ' ', '') = 
+           REPLACE(REPLACE(TRIM(LOWER(u.id)), 'u', ''), ' ', '')
       )
     `;
+
     let params = [];
     let conditions = [];
-    if (studentId) { conditions.push('c.student_id = ?'); params.push(studentId); }
-    if (title) { conditions.push('c.title LIKE ?'); params.push(`%${title}%`); }
-    if (conditions.length > 0) { query += ' WHERE ' + conditions.join(' AND '); }
+    if (studentId) {
+      conditions.push('c.student_id = ?');
+      params.push(studentId);
+    }
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+
     query += ' ORDER BY c.issued_date DESC, c.created_at DESC';
 
     const connection = await mysql.createConnection(dbConfig);
-    let rows;
     try {
-      [rows] = await connection.execute(query, params);
-    } finally { await connection.end(); }
-
-    const certificates = rows.map(row => ({
-      ...row,
-      studentName: row.u_name || `Student ${row.student_id}`,
-      studentRoll: row.u_roll || 'N/A',
-      studentClass: row.u_class || 'N/A',
-      studentSection: row.u_section || '',
-      studentEmail: row.u_email || 'N/A',
-      studentMobile: row.u_mobile || 'N/A',
-      studentDepartment: row.u_department || 'N/A',
-      studentAvatar: row.u_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${row.student_id}`,
-      studentRole: row.u_role || 'STUDENT',
-      issuedDate: row.issued_date,
-      fileUrl: row.file_url,
-      verifiedBy: row.verified_by,
-      verifiedAt: row.verified_at,
-      createdAt: row.created_at
-    }));
-    res.json(certificates);
+      const [rows] = await connection.execute(query, params);
+      const certificates = rows.map(row => ({
+        ...row,
+        studentName: row.u_name || `ID: ${row.student_id}`,
+        studentRoll: row.u_roll || 'N/A',
+        studentClass: row.u_class || 'N/A',
+        studentSection: row.u_section || '',
+        studentEmail: row.u_email || 'N/A',
+        studentMobile: row.u_mobile || 'N/A',
+        studentDepartment: row.u_department || 'N/A',
+        studentAvatar: row.u_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${row.student_id}`,
+        studentRole: row.u_role || 'STUDENT',
+        issuedDate: row.issued_date,
+        fileUrl: row.file_url
+      }));
+      res.json(certificates);
+    } finally {
+      await connection.end();
+    }
   } catch (err) {
-    console.error('Get Certificates Error:', err);
-    res.status(500).json({ error: err.message });
+    console.error('Fetch certificates error:', err);
+    res.status(500).json({ error: 'Failed to fetch certificates' });
   }
 });
-
-// Consolidated Delete Certificate Route
-apiRouter.delete('/certificates/:id', handleCertDelete);
 
 apiRouter.put('/certificates/:id', async (req, res) => {
   try {
@@ -714,41 +763,6 @@ app.use((req, res, next) => {
   console.log(`[REQUEST] ${req.method} ${req.url}`);
   next();
 });
-
-// --- EXPLICIT DELETE HANDLER (Hotfix for Vercel Routing) ---
-const handleCertDelete = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { userId, role } = req.query;
-    console.log(`[EXPLICIT DELETE] Request for ${id} by ${userId} (${role})`);
-
-    if (!userId) { return res.status(401).json({ error: 'User ID is required' }); }
-
-    const connection = await mysql.createConnection(dbConfig);
-    try {
-      const [certs] = await connection.execute('SELECT * FROM certificates WHERE id = ?', [id]);
-      if (certs.length === 0) return res.status(404).json({ error: 'Certificate not found' });
-
-      const cert = certs[0];
-      const reqRole = (role || '').toString().toUpperCase();
-      const reqUserId = (userId || '').toString().trim();
-      const certOwnerId = (cert.student_id || '').toString().trim();
-
-      if (reqRole !== 'ADMIN' && reqUserId !== certOwnerId) {
-        console.warn(`🛑 Unauthorized delete: ${id}`);
-        return res.status(403).json({ error: 'Unauthorized' });
-      }
-
-      await connection.execute('DELETE FROM certificates WHERE id = ?', [id]);
-      res.json({ success: true, message: 'Deleted successfully' });
-    } finally {
-      await connection.end();
-    }
-  } catch (err) {
-    console.error('Explicit Delete Error:', err);
-    res.status(500).json({ error: err.message });
-  }
-};
 
 // Use API Router
 app.use('/api', apiRouter);
