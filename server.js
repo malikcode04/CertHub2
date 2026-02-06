@@ -238,14 +238,17 @@ async function handleCertDelete(req, res) {
 
     if (!userId) return res.status(401).json({ error: 'User ID required' });
 
-    const [certs] = await pool.execute('SELECT * FROM certificates WHERE id = ?', [id]);
+    // NORMALIZE ID - strip any letter prefixes
+    const normalizeId = (val) => (val || '').toString().trim().replace(/^[a-z]+/i, '');
+    const normalizedCertId = normalizeId(id);
+
+    const [certs] = await pool.execute('SELECT * FROM certificates WHERE id = ?', [normalizedCertId]);
     if (certs.length === 0) return res.status(404).json({ error: 'Certificate not found' });
 
     const cert = certs[0];
     const reqRole = (role || '').toString().toUpperCase();
 
     // PERMISSION CHECK - flexible ID matching
-    const normalizeId = (val) => (val || '').toString().trim().replace(/^[a-z]+/i, '');
     const isOwner = normalizeId(userId) === normalizeId(cert.student_id);
 
     if (reqRole !== 'ADMIN' && !isOwner) {
@@ -253,11 +256,11 @@ async function handleCertDelete(req, res) {
       return res.status(403).json({ error: 'Unauthorized to delete this certificate' });
     }
 
-    await pool.execute('DELETE FROM certificates WHERE id = ?', [id]);
+    await pool.execute('DELETE FROM certificates WHERE id = ?', [normalizedCertId]);
 
-    const [uRows] = await pool.execute('SELECT name FROM users WHERE id = ?', [userId]);
+    const [uRows] = await pool.execute('SELECT name FROM users WHERE id = ?', [normalizeId(userId)]);
     const userName = (uRows.length > 0) ? uRows[0].name : 'System';
-    await logAction(userId, userName, 'DELETE_CERT', `Deleted cert: ${cert.title} (${id})`);
+    await logAction(normalizeId(userId), userName, 'DELETE_CERT', `Deleted cert: ${cert.title} (${normalizedCertId})`);
 
     res.json({ success: true, message: 'Deleted successfully' });
   } catch (err) {
