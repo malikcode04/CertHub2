@@ -43,28 +43,15 @@ const transporter = (process.env.EMAIL_USER && process.env.EMAIL_PASS)
     auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
   }) : null;
 
-// --- DATABASE INITIALIZATION (FRESH START) ---
+// --- DATABASE INITIALIZATION (PERSISTENT & CLEAN) ---
 async function initDB() {
   const connection = await pool.getConnection();
   try {
-    console.log('🔄 CertHub: Reseting Database for Fresh Start...');
+    console.log('🔄 CertHub: Ensuring Core Tables Exist...');
 
-    // 1. Drop existing tables to clear inconsistent legacy data
-    const tablesToDrop = [
-      'audit_logs',
-      'certificates',
-      'class_enrollments',
-      'classes',
-      'platforms',
-      'users'
-    ];
-    for (const table of tablesToDrop) {
-      await connection.execute(`DROP TABLE IF EXISTS ${table}`);
-    }
-
-    // 2. Re-create tables with clean BIGINT AUTO_INCREMENT
+    // Create tables with clean BIGINT AUTO_INCREMENT
     await connection.execute(`
-      CREATE TABLE users (
+      CREATE TABLE IF NOT EXISTS users (
         id BIGINT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         email VARCHAR(255) UNIQUE NOT NULL,
@@ -81,7 +68,7 @@ async function initDB() {
     `);
 
     await connection.execute(`
-      CREATE TABLE platforms (
+      CREATE TABLE IF NOT EXISTS platforms (
         id BIGINT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         color VARCHAR(50) DEFAULT '#3b82f6',
@@ -91,7 +78,7 @@ async function initDB() {
     `);
 
     await connection.execute(`
-      CREATE TABLE classes (
+      CREATE TABLE IF NOT EXISTS classes (
         id BIGINT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         course_name VARCHAR(255) NOT NULL,
@@ -101,7 +88,7 @@ async function initDB() {
     `);
 
     await connection.execute(`
-      CREATE TABLE class_enrollments (
+      CREATE TABLE IF NOT EXISTS class_enrollments (
         id BIGINT AUTO_INCREMENT PRIMARY KEY,
         class_id BIGINT NOT NULL,
         student_id BIGINT NOT NULL,
@@ -110,7 +97,7 @@ async function initDB() {
     `);
 
     await connection.execute(`
-      CREATE TABLE certificates (
+      CREATE TABLE IF NOT EXISTS certificates (
         id BIGINT AUTO_INCREMENT PRIMARY KEY,
         student_id BIGINT NOT NULL,
         title VARCHAR(255) NOT NULL,
@@ -126,7 +113,7 @@ async function initDB() {
     `);
 
     await connection.execute(`
-      CREATE TABLE audit_logs (
+      CREATE TABLE IF NOT EXISTS audit_logs (
         id BIGINT AUTO_INCREMENT PRIMARY KEY,
         user_id BIGINT,
         user_name VARCHAR(255),
@@ -136,9 +123,9 @@ async function initDB() {
       )
     `);
 
-    console.log('✅ Fresh Database Ready (Clean AUTO_INCREMENT IDs)');
+    console.log('✅ Fresh Stable Environment Ready');
   } catch (err) {
-    console.error('❌ Fresh Start Error:', err);
+    console.error('❌ DB Maintenance Error:', err);
   } finally {
     connection.release();
   }
