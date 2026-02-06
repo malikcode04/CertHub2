@@ -87,7 +87,7 @@ const CertificateTable: React.FC<CertificateTableProps> = ({
                             <AlertTriangle size={14} className="text-amber-500" title="Profile Incomplete" />
                           )}
                           <p className="font-bold text-slate-800 text-sm hover:text-blue-600 hover:underline">
-                            {cert.studentName || `ID: ${cert.studentId}`}
+                            {cert.studentName || 'Student'}
                           </p>
                         </div>
                         <p className="text-xs text-slate-500">
@@ -116,7 +116,6 @@ const CertificateTable: React.FC<CertificateTableProps> = ({
                         >
                           {cert.title}
                         </p>
-                        <p className="text-xs text-slate-400">ID: {cert.id.toUpperCase()}</p>
                       </div>
                     </div>
                   </td>

@@ -76,7 +76,6 @@ const PublicCertificateView = () => {
                     <h1 className="text-3xl font-black text-white tracking-tight mb-2">
                         {isVerified ? 'Verified Certificate' : 'Certificate Pending'}
                     </h1>
-                    <p className="text-white/90 font-medium">ID: {cert.id}</p>
                 </div>
 
                 {/* Content */}

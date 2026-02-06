@@ -43,6 +43,84 @@ const transporter = (process.env.EMAIL_USER && process.env.EMAIL_PASS)
     auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
   }) : null;
 
+// --- DATABASE INITIALIZATION (AUTO_INCREMENT) ---
+async function initDB() {
+  const connection = await pool.getConnection();
+  try {
+    console.log('🔄 CertHub: Synchronizing Schema (AUTO_INCREMENT)...');
+
+    // 1. Users table
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS users (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        role ENUM('STUDENT', 'TEACHER', 'ADMIN') NOT NULL DEFAULT 'STUDENT',
+        department VARCHAR(100),
+        current_class VARCHAR(100),
+        section VARCHAR(50),
+        roll_number VARCHAR(50) UNIQUE,
+        mobile_number VARCHAR(20),
+        avatar VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // 2. Supporting Tables
+    const tables = [
+      `CREATE TABLE IF NOT EXISTS platforms (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        color VARCHAR(50) DEFAULT '#3b82f6',
+        icon VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS classes (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        course_name VARCHAR(255) NOT NULL,
+        teacher_id BIGINT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS class_enrollments (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        class_id BIGINT NOT NULL,
+        student_id BIGINT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS certificates (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        student_id BIGINT NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        platform VARCHAR(255) NOT NULL,
+        issued_date DATE NOT NULL,
+        file_url TEXT NOT NULL,
+        status ENUM('PENDING', 'VERIFIED', 'REJECTED') DEFAULT 'PENDING',
+        remarks TEXT,
+        verified_by BIGINT,
+        verified_at TIMESTAMP NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS audit_logs (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT,
+        user_name VARCHAR(255),
+        action VARCHAR(255) NOT NULL,
+        details TEXT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`
+    ];
+
+    for (const sql of tables) await connection.execute(sql);
+    console.log('✅ Database Schema Ready (Clean Integer IDs)');
+  } catch (err) {
+    console.error('❌ DB Sync Error:', err);
+  } finally {
+    connection.release();
+  }
+}
+
 // --- MIDDLEWARE ---
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(morgan('dev'));
@@ -80,14 +158,11 @@ async function sendEmail(to, subject, text, html) {
 
 async function logAction(userId, userName, action, details) {
   try {
-    const id = `log${Date.now()}`;
     await pool.execute(
-      'INSERT INTO audit_logs (id, user_id, user_name, action, details) VALUES (?, ?, ?, ?, ?)',
-      [id, userId, userName, action, details]
+      'INSERT INTO audit_logs (user_id, user_name, action, details) VALUES (?, ?, ?, ?)',
+      [userId || null, userName || null, action, details]
     );
-  } catch (err) {
-    console.error('Audit Log Error:', err);
-  }
+  } catch (err) { console.error('Audit Log Error:', err); }
 }
 
 // --- HANDLERS (Hoisted function declarations) ---
@@ -97,7 +172,7 @@ async function handleGetCertificates(req, res) {
     const { studentId } = req.query;
     console.log(`[CERT_FETCH] Request for studentId: ${studentId || 'ALL'}`);
 
-    // SUPER JOIN: Matches by ID, Roll Number, or ID without 'u' prefix
+    // SIMPLE JOIN: Direct ID match, no more prefix hack
     let query = `
       SELECT c.*, 
       u.name as u_name,
@@ -109,12 +184,7 @@ async function handleGetCertificates(req, res) {
       u.department as u_department,
       u.avatar as u_avatar
       FROM certificates c 
-      LEFT JOIN users u ON (
-        TRIM(c.student_id) = TRIM(u.id)
-        OR TRIM(c.student_id) = TRIM(u.roll_number)
-        OR REPLACE(REPLACE(TRIM(LOWER(c.student_id)), 'u', ''), ' ', '') = 
-           REPLACE(REPLACE(TRIM(LOWER(u.id)), 'u', ''), ' ', '')
-      )
+      LEFT JOIN users u ON c.student_id = u.id
     `;
 
     let params = [];
@@ -128,7 +198,7 @@ async function handleGetCertificates(req, res) {
 
     const certificates = rows.map(row => ({
       ...row,
-      studentName: row.u_name || `ID: ${row.student_id}`,
+      studentName: row.u_name || 'Unknown Student',
       studentRoll: row.u_roll || 'N/A',
       studentClass: row.u_class || 'N/A',
       studentSection: row.u_section || '',
@@ -161,9 +231,8 @@ async function handleCertDelete(req, res) {
     const cert = certs[0];
     const reqRole = (role || '').toString().toUpperCase();
 
-    // FUZZY PERMISSION CHECK
-    const normalize = (val) => (val || '').toString().trim().toLowerCase().replace(/^u/, '');
-    const isOwner = normalize(userId) === normalize(cert.student_id);
+    // PERMISSION CHECK (now with integer IDs)
+    const isOwner = userId.toString() === cert.student_id.toString();
 
     if (reqRole !== 'ADMIN' && !isOwner) {
       console.warn(`🛑 Unauthorized delete attempt by ${userId} for cert ${id}`);
@@ -206,15 +275,14 @@ async function handleUploadCertificate(req, res) {
   try {
     const { title, platform, issuedDate, studentId, imageBase64, autoVerify } = req.body;
     const uploadRes = await cloudinary.uploader.upload(imageBase64, { folder: 'certhub' });
-    const id = `c${Date.now()}`;
     const status = autoVerify ? 'VERIFIED' : 'PENDING';
 
-    await pool.execute(
-      'INSERT INTO certificates (id, student_id, title, platform, issued_date, file_url, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, studentId, title, platform, issuedDate, uploadRes.secure_url, status]
+    const [result] = await pool.execute(
+      'INSERT INTO certificates (student_id, title, platform, issued_date, file_url, status) VALUES (?, ?, ?, ?, ?, ?)',
+      [studentId, title, platform, issuedDate, uploadRes.secure_url, status]
     );
 
-    res.json({ success: true, id, fileUrl: uploadRes.secure_url });
+    res.json({ success: true, id: result.insertId, fileUrl: uploadRes.secure_url });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -240,15 +308,15 @@ async function handleRegister(req, res) {
     const [existing] = await pool.execute('SELECT id FROM users WHERE email = ?', [email]);
     if (existing.length > 0) return res.status(400).json({ error: 'User exists' });
 
-    const id = `u${Date.now()}`;
     const hashedPassword = await bcrypt.hash(password, 10);
     const avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`;
 
-    await pool.execute(
-      'INSERT INTO users (id, name, email, password, role, department, current_class, section, roll_number, mobile_number, avatar) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, name, email, hashedPassword, role, department || null, currentClass || null, section || null, rollNumber || null, mobileNumber || null, avatar]
+    const [result] = await pool.execute(
+      'INSERT INTO users (name, email, password, role, department, current_class, section, roll_number, mobile_number, avatar) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, email, hashedPassword, role, department || null, currentClass || null, section || null, rollNumber || null, mobileNumber || null, avatar]
     );
 
+    const id = result.insertId;
     const token = jwt.sign({ id, role }, JWT_SECRET, { expiresIn: '1d' });
     res.json({ token, user: { id, name, email, role, avatar } });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -373,12 +441,11 @@ async function handleGetPlatforms(req, res) {
 async function handleAddPlatform(req, res) {
   try {
     const { name, color, icon } = req.body;
-    const id = `p${Date.now()}`;
-    await pool.execute(
-      'INSERT INTO platforms (id, name, color, icon) VALUES (?, ?, ?, ?)',
-      [id, name, color, icon]
+    const [result] = await pool.execute(
+      'INSERT INTO platforms (name, color, icon) VALUES (?, ?, ?)',
+      [name, color, icon]
     );
-    res.json({ id, name, color, icon });
+    res.json({ id: result.insertId, name, color, icon });
   } catch (err) {
     console.error('Add Platform Error:', err);
     res.status(500).json({ error: err.message });
@@ -402,12 +469,11 @@ async function handleGetClasses(req, res) {
 async function handleAddClass(req, res) {
   try {
     const { name, courseName, teacherId } = req.body;
-    const id = `cls${Date.now()}`;
-    await pool.execute(
-      'INSERT INTO classes (id, name, course_name, teacher_id) VALUES (?, ?, ?, ?)',
-      [id, name, courseName, teacherId]
+    const [result] = await pool.execute(
+      'INSERT INTO classes (name, course_name, teacher_id) VALUES (?, ?, ?)',
+      [name, courseName, teacherId]
     );
-    res.json({ id, name, courseName, teacherId });
+    res.json({ id: result.insertId, name, courseName, teacherId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -419,10 +485,9 @@ async function handleEnrollStudentsInClass(req, res) {
     const { studentIds } = req.body;
 
     for (const studentId of studentIds) {
-      const id = `enr${Date.now()}${Math.floor(Math.random() * 1000)}`;
       await pool.execute(
-        'INSERT IGNORE INTO class_enrollments (id, class_id, student_id) VALUES (?, ?, ?)',
-        [id, classId, studentId]
+        'INSERT IGNORE INTO class_enrollments (class_id, student_id) VALUES (?, ?)',
+        [classId, studentId]
       );
     }
     res.json({ success: true, count: studentIds.length });
