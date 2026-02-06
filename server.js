@@ -244,7 +244,8 @@ async function handleCertDelete(req, res) {
     const cert = certs[0];
     const reqRole = (role || '').toString().toUpperCase();
 
-    // PERMISSION CHECK (now with integer IDs)
+    // PERMISSION CHECK - flexible ID matching
+    const normalizeId = (val) => (val || '').toString().trim().replace(/^[a-z]+/i, '');
     const isOwner = normalizeId(userId) === normalizeId(cert.student_id);
 
     if (reqRole !== 'ADMIN' && !isOwner) {
@@ -423,19 +424,25 @@ async function handleGetUsers(req, res) {
 async function handleDeleteUser(req, res) {
   try {
     const { id } = req.params;
+    const { adminEmail } = req.query; // Get admin email from request
+
     const [users] = await pool.execute('SELECT * FROM users WHERE id = ?', [id]);
     if (users.length === 0) return res.status(404).json({ error: 'User not found' });
 
     const userToDelete = users[0];
-    if (userToDelete.role === 'ADMIN') {
-      return res.status(403).json({ error: 'Admins cannot be deleted via this endpoint' });
+
+    // Super admin check - malik can delete anyone including admins
+    const isSuperAdmin = adminEmail && adminEmail.toLowerCase().includes('malik');
+
+    if (userToDelete.role === 'ADMIN' && !isSuperAdmin) {
+      return res.status(403).json({ error: 'Only super admin can delete other admins' });
     }
 
     await pool.execute('DELETE FROM class_enrollments WHERE student_id = ?', [id]);
     await pool.execute('DELETE FROM certificates WHERE student_id = ?', [id]);
     await pool.execute('DELETE FROM users WHERE id = ?', [id]);
 
-    await logAction('ADMIN', 'SYSTEM', 'DELETE_USER', `Deleted user ${userToDelete.name} (${id})`);
+    await logAction('ADMIN', adminEmail || 'SYSTEM', 'DELETE_USER', `Deleted user ${userToDelete.name} (${id})`);
 
     res.json({ success: true, message: `User ${userToDelete.name} deleted successfully` });
   } catch (err) { res.status(500).json({ error: err.message }); }

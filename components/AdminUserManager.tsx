@@ -9,8 +9,14 @@ const AdminUserManager: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
 
     useEffect(() => {
+        // Get current user from localStorage
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+            setCurrentUser(JSON.parse(userStr));
+        }
         fetchUsers();
     }, []);
 
@@ -30,7 +36,7 @@ const AdminUserManager: React.FC = () => {
 
         setIsDeleting(user.id);
         try {
-            await api.deleteUser(user.id);
+            await api.deleteUser(user.id, currentUser?.email);
             setUsers(prev => prev.filter(u => u.id !== user.id));
         } catch (error: any) {
             alert(error.message || "Failed to delete user");
@@ -43,6 +49,9 @@ const AdminUserManager: React.FC = () => {
         u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         u.email.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    // Check if current user is super admin (malik)
+    const isSuperAdmin = currentUser?.email?.toLowerCase().includes('malik');
 
     if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={40} /></div>;
 
@@ -112,7 +121,7 @@ const AdminUserManager: React.FC = () => {
                                             </div>
                                         </td>
                                         <td className="px-8 py-5 text-right">
-                                            {user.role !== UserRole.ADMIN && (
+                                            {(user.role !== UserRole.ADMIN || isSuperAdmin) && (
                                                 <button
                                                     onClick={() => handleDelete(user)}
                                                     disabled={isDeleting === user.id}

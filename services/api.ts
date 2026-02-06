@@ -95,8 +95,9 @@ export const api = {
         return res.json();
     },
 
-    deleteUser: async (id: string) => {
-        const res = await fetch(`${API_URL}/users/${id}`, {
+    deleteUser: async (id: string, adminEmail?: string) => {
+        const params = adminEmail ? `?adminEmail=${encodeURIComponent(adminEmail)}` : '';
+        const res = await fetch(`${API_URL}/users/${id}${params}`, {
             method: 'DELETE',
             headers: getHeaders()
         });
