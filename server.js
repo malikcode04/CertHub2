@@ -530,6 +530,26 @@ apiRouter.delete('/users/:id', handleDeleteUser);
 
 // Admin Routes
 apiRouter.get('/admin/logs', handleGetAuditLogs);
+apiRouter.post('/admin/force-reset', async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+    try {
+      console.log('🔥 MANUAL RESET TRIGGERED');
+      const tables = ['audit_logs', 'certificates', 'class_enrollments', 'classes', 'platforms', 'users'];
+      for (const t of tables) await connection.execute(`DROP TABLE IF EXISTS ${t}`);
+
+      // Recreate fresh
+      await initDB();
+
+      res.json({ success: true, message: 'Database wiped and reset successfully' });
+    } finally {
+      connection.release();
+    }
+  } catch (err) {
+    console.error('Reset Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Platform Routes
 apiRouter.get('/platforms', handleGetPlatforms);
