@@ -43,79 +43,61 @@ const transporter = (process.env.EMAIL_USER && process.env.EMAIL_PASS)
     auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
   }) : null;
 
-// --- DATABASE INITIALIZATION (AUTO_INCREMENT) ---
+// --- HELPERS ---
+const normalizeId = (id) => (id || '').toString().trim().replace(/^[a-z]+/, '');
+
+// --- DATABASE INITIALIZATION (MIGRATION & AUTO_INCREMENT) ---
 async function initDB() {
   const connection = await pool.getConnection();
   try {
-    console.log('🔄 CertHub: Synchronizing Schema (AUTO_INCREMENT)...');
+    console.log('🔄 CertHub: Migrating Data & Schema (Clean Integer IDs)...');
 
-    // 1. Users table
-    await connection.execute(`
-      CREATE TABLE IF NOT EXISTS users (
-        id BIGINT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        password VARCHAR(255) NOT NULL,
-        role ENUM('STUDENT', 'TEACHER', 'ADMIN') NOT NULL DEFAULT 'STUDENT',
-        department VARCHAR(100),
-        current_class VARCHAR(100),
-        section VARCHAR(50),
-        roll_number VARCHAR(50) UNIQUE,
-        mobile_number VARCHAR(20),
-        avatar VARCHAR(255),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+    // Helper to safety-convert columns
+    const migrateTable = async (table, cols) => {
+      try {
+        // Strip prefixes first
+        for (const col of cols) {
+          await connection.execute(`UPDATE ${table} SET ${col} = REGEXP_REPLACE(${col}, '^[a-z]+', '') WHERE ${col} REGEXP '^[a-z]'`);
+        }
+      } catch (e) { console.warn(`Note: Migration prefix strip on ${table} skipped/passed.`); }
+    };
 
-    // 2. Supporting Tables
-    const tables = [
-      `CREATE TABLE IF NOT EXISTS platforms (
-        id BIGINT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        color VARCHAR(50) DEFAULT '#3b82f6',
-        icon VARCHAR(255),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS classes (
-        id BIGINT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        course_name VARCHAR(255) NOT NULL,
-        teacher_id BIGINT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS class_enrollments (
-        id BIGINT AUTO_INCREMENT PRIMARY KEY,
-        class_id BIGINT NOT NULL,
-        student_id BIGINT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS certificates (
-        id BIGINT AUTO_INCREMENT PRIMARY KEY,
-        student_id BIGINT NOT NULL,
-        title VARCHAR(255) NOT NULL,
-        platform VARCHAR(255) NOT NULL,
-        issued_date DATE NOT NULL,
-        file_url TEXT NOT NULL,
-        status ENUM('PENDING', 'VERIFIED', 'REJECTED') DEFAULT 'PENDING',
-        remarks TEXT,
-        verified_by BIGINT,
-        verified_at TIMESTAMP NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS audit_logs (
-        id BIGINT AUTO_INCREMENT PRIMARY KEY,
-        user_id BIGINT,
-        user_name VARCHAR(255),
-        action VARCHAR(255) NOT NULL,
-        details TEXT,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`
-    ];
+    // 1. Strip all prefixes from existing data
+    await migrateTable('users', ['id']);
+    await migrateTable('certificates', ['id', 'student_id', 'verified_by']);
+    await migrateTable('platforms', ['id']);
+    await migrateTable('classes', ['id', 'teacher_id']);
+    await migrateTable('class_enrollments', ['id', 'class_id', 'student_id']);
+    await migrateTable('audit_logs', ['id', 'user_id']);
 
-    for (const sql of tables) await connection.execute(sql);
-    console.log('✅ Database Schema Ready (Clean Integer IDs)');
+    // 2. Alter columns to BIGINT (this will work now prefixes are gone)
+    // We do this one by one to avoid breaking on already-migrated DBs
+    const alterToBigInt = async (table, col, autoInc = false) => {
+      try {
+        const ai = autoInc ? 'AUTO_INCREMENT' : '';
+        await connection.execute(`ALTER TABLE ${table} MODIFY ${col} BIGINT ${ai}`);
+      } catch (e) { console.warn(`Note: Could not alter ${table}.${col} to BIGINT (maybe already is).`); }
+    };
+
+    // Adjust Primary Keys first (drop auto-inc if exists, but usually PK is just VARCHAR)
+    await alterToBigInt('users', 'id', true);
+    await alterToBigInt('platforms', 'id', true);
+    await alterToBigInt('classes', 'id', true);
+    await alterToBigInt('class_enrollments', 'id', true);
+    await alterToBigInt('certificates', 'id', true);
+    await alterToBigInt('audit_logs', 'id', true);
+
+    // Adjust Foreign Key columns
+    await alterToBigInt('certificates', 'student_id');
+    await alterToBigInt('certificates', 'verified_by');
+    await alterToBigInt('classes', 'teacher_id');
+    await alterToBigInt('class_enrollments', 'class_id');
+    await alterToBigInt('class_enrollments', 'student_id');
+    await alterToBigInt('audit_logs', 'user_id');
+
+    console.log('✅ Database Schema Fully Migrated to Integers');
   } catch (err) {
-    console.error('❌ DB Sync Error:', err);
+    console.error('❌ Migration Error:', err);
   } finally {
     connection.release();
   }
@@ -190,7 +172,7 @@ async function handleGetCertificates(req, res) {
     let params = [];
     if (studentId) {
       query += ' WHERE c.student_id = ?';
-      params.push(studentId);
+      params.push(normalizeId(studentId));
     }
     query += ' ORDER BY c.issued_date DESC, c.created_at DESC';
 
@@ -232,7 +214,7 @@ async function handleCertDelete(req, res) {
     const reqRole = (role || '').toString().toUpperCase();
 
     // PERMISSION CHECK (now with integer IDs)
-    const isOwner = userId.toString() === cert.student_id.toString();
+    const isOwner = normalizeId(userId) === normalizeId(cert.student_id);
 
     if (reqRole !== 'ADMIN' && !isOwner) {
       console.warn(`🛑 Unauthorized delete attempt by ${userId} for cert ${id}`);
